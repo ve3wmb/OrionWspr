@@ -18,7 +18,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <si5351.h>
+//#include <si5351.h>
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 
@@ -46,9 +46,10 @@
 /***********************************************************
  * Si5351a Configuration Parameters
  ***********************************************************/
-#define SI5351A_PARK_CLK_NUM    SI5351_CLK0   // The Si5351a Clock Number output used to mimic the QRP Labs U3S Park feature. This needs to be an unused clk port.
-                                              // I recommend terminating this port to ground via a 47ohm resistor. 
-#define SI5351A_WSPRTX_CLK_NUM  SI5351_CLK2   // The Si5351a Clock Number output used for the WSPR Beacon Transmission
+#define SI5351A_PARK_CLK_NUM    0              // The Si5351a Clock Number output used to mimic the QRP Labs U3S Park feature. This needs to be an unused clk port.
+                                              // I recommend terminating this port to ground via a 47ohm resistor.
+#define SI5351A_CAL_CLK_NUM     1             // Calibration Clock Number                                
+#define SI5351A_WSPRTX_CLK_NUM  2              // The Si5351a Clock Number output used for the WSPR Beacon Transmission
 
 #define SI5351A_CLK_FREQ_CORRECTION  5190     // Correction Value for VE3WMB Adafruit Si5351 Breakout board 
                                               // You need to calibrate your Si5351a and substitute the resulting correction value here.

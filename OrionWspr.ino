@@ -19,6 +19,10 @@
 // Vandewettering K6HX and adapted for the Si5351A by Robert Liesenfeld AK6L <ak6l@ak6l.org>.
 // Timer setup code by Thomas Knutsen LA3PNA. Time code adapted from the TimeSerial.ino example from the Time library.
 //
+// The original Si5351 Library code (from Etherkit .. aka NT7S) was replaced by self-contained SI5315 routines 
+// written Jerry Gaffke, KE7ER. The KE7ER code was modified by VE3WMB to use 64 bit precision in the calculations to
+// enable the sub-Hz resolution needed for WSPR and to allow Software I2C usage via the inclusion of <SoftWire.h>.
+//
 // Code modified and added by Michael Babineau, VE3WMB for Project Aries pico-Balloon WSPR Beacon (2018/2019)
 // This additional code is Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
 
@@ -30,14 +34,14 @@
 //
 // I have tried to keep the AVR/Arduino port usage in the implementation configurable via #defines in OrionXConfig.h so this
 // code can more easily be setup to run on different beacon boards such as those designed by DL6OW and N2NXZ and in future
-// the QRP Labs U3B.
+// the QRP Labs U3B. This was also the motivation for moving to a software I2C solution using SoftWire.h. The SoftWire interface
+// mimics the Wire library so switching back to using hardware-enable I2C is simple. 
 //
 // Required Libraries
 // ------------------
-// Etherkit Si5351 (Library Manager) https://github.com/etherkit/Si5351Arduino
 // Etherkit JTEncode (Library Manager)  https://github.com/etherkit/JTEncode
 // Time (Library Manager)   https://github.com/PaulStoffregen/Time
-// Wire (Arduino Standard Library)
+// SoftWire (https://github.com/stevemarple/SoftWire) - (assumes that you are using Software I2C otherwise substitute Wire.h)
 // TinyGPS (Library Manager) http://arduiniana.org/libraries/TinyGPS/
 //
 // License
@@ -62,13 +66,13 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-#include <si5351.h>
 #include <JTEncode.h>
 #include <int.h>
 #include <TimeLib.h>
 #include <TinyGPS.h>
-#include "Wire.h"
+//#include <Wire.h>     / Only uncomment this if you are using Hardware I2C to talk to the Si5351a
 #include "OrionXConfig.h"
+#include "OrionSi5351.h"
 
 // NOTE THAT ALL #DEFINES THAT ARE INTENDED TO BE USER CONFIGURABLE ARE LOCATED IN OrionXConfig.h.
 // DON'T TOUCH ANYTHING DEFINED IN THIS FILE WITHOUT SOME VERY CAREFUL CONSIDERATION.
@@ -78,7 +82,6 @@
 #define SYMBOL_COUNT            WSPR_SYMBOL_COUNT
 
 // Globals
-Si5351 si5351;
 JTEncode jtencode;
 TinyGPS gps;
 
@@ -115,7 +118,7 @@ void encode_and_tx_wspr_msg1()
   jtencode.wspr_encode(g_beacon_callsign, g_grid_loc, g_tx_pwr_dbm, g_tx_buffer);
 
   // Reset the tone to 0 and turn on the TX output
-  si5351.set_clock_pwr(SI5351A_WSPRTX_CLK_NUM, 1);
+  si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM,(g_beacon_freq_hz * 100ULL));
 
   if (TX_LED_PIN != 0) { // If we are using the TX LED turn it on
     digitalWrite(TX_LED_PIN, HIGH);
@@ -123,7 +126,7 @@ void encode_and_tx_wspr_msg1()
   // Now send the rest of the message
   for (i = 0; i < SYMBOL_COUNT; i++)
   {
-    si5351.set_freq((g_beacon_freq_hz * 100ULL) + (g_tx_buffer[i] * TONE_SPACING), SI5351A_WSPRTX_CLK_NUM);
+    si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL) + (g_tx_buffer[i] * TONE_SPACING));
     g_proceed = false;
 
     // We spin our wheels in TX here, waiting until the Timer1 Interrupt sets the g_proceed flag
@@ -132,7 +135,8 @@ void encode_and_tx_wspr_msg1()
   }
 
   // Turn off the clock output, we are done sending the message
-  si5351.set_clock_pwr(SI5351A_WSPRTX_CLK_NUM, 0);
+  //si5351.set_clock_pwr(SI5351A_WSPRTX_CLK_NUM, 0);
+  si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF);
 
   if (TX_LED_PIN != 0) { // If we are using the TX LED turn it off
     digitalWrite(TX_LED_PIN, LOW);
@@ -158,22 +162,20 @@ void setup()
   Serial.begin(GPS_SERIAL_BAUD);
 
   // Initialize the Si5351
-  // Change the 2nd parameter in init if using a ref osc other
-  // than 25 MHz. Using a zero here defaults to 25 Mhz clock
-  // The CORRECTION factor comes from a predetermined constant
-  // derived during calibration of the Si5351a clock. 
-  si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, SI5351A_CLK_FREQ_CORRECTION);
-
+  si5351bx_init();
+  
   // Setup WSPR TX output
-  si5351.set_freq((g_beacon_freq_hz * 100ULL), SI5351A_WSPRTX_CLK_NUM); // Note that the 1st parameter is in hundredths of Hz (i.e. Hz x 100)
-  si5351.drive_strength(SI5351A_WSPRTX_CLK_NUM, SI5351_DRIVE_8MA); // Set for max power 8mA
-  si5351.set_clock_pwr(SI5351A_WSPRTX_CLK_NUM, 0); // Disable the clock initially
+  
+  si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM,(g_beacon_freq_hz * 100ULL));
+  si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF); // Disable the clock initially
 
+  // Temporarily disable PARK until we sort out whether we need a frequency higher than 109 Mhz. which is the limit with the current SI5351a
+  // configuration. 
   // Set PARK CLK Output - Note that we leave SI5351A_PARK_CLK_NUM running at 150 Mhz to keep the SI5351 temperature more constant
   // This minimizes thermal induced drift during WSPR transmissions. The idea is borrowed from G0UPL's PARK feature on the QRP Labs U3S
-  si5351.set_freq(g_park_freq_hz_x100, SI5351A_PARK_CLK_NUM);
-  si5351.drive_strength(SI5351A_PARK_CLK_NUM, SI5351_DRIVE_8MA); // Set for max power
-  si5351.set_clock_pwr(SI5351A_PARK_CLK_NUM , 1); // Enable PARK Clock and keep it running 
+  //si5351.set_freq(g_park_freq_hz_x100, SI5351A_PARK_CLK_NUM);
+  //si5351.drive_strength(SI5351A_PARK_CLK_NUM, SI5351_DRIVE_8MA); // Set for max power
+  //si5351.set_clock_pwr(SI5351A_PARK_CLK_NUM , 1); // Enable PARK Clock and keep it running 
 
   // Set up Timer1 for interrupts every symbol period (i.e 1.46 Hz)
   // The formula to calculate this is CPU_CLOCK_SPEED_HZ / (PRESCALE_VALUE) x (WSPR_CTC + 1)
@@ -195,6 +197,7 @@ void setup()
 
   interrupts();            // Re-enable interrupts.
 } // end setup()
+
 
 void loop()
 {
