@@ -46,13 +46,14 @@
 /***********************************************************
  * Si5351a Configuration Parameters
  ***********************************************************/
-#define SI5351A_PARK_CLK_NUM    0              // The Si5351a Clock Number output used to mimic the QRP Labs U3S Park feature. This needs to be an unused clk port.
+#define SI5351A_PARK_CLK_NUM    1              // The Si5351a Clock Number output used to mimic the QRP Labs U3S Park feature. This needs to be an unused clk port.
                                               // I recommend terminating this port to ground via a 47ohm resistor.
-#define SI5351A_CAL_CLK_NUM     1             // Calibration Clock Number                                
-#define SI5351A_WSPRTX_CLK_NUM  2              // The Si5351a Clock Number output used for the WSPR Beacon Transmission
+#define SI5351A_CAL_CLK_NUM     2             // Calibration Clock Number                                
+#define SI5351A_WSPRTX_CLK_NUM  0              // The Si5351a Clock Number output used for the WSPR Beacon Transmission
 
-#define SI5351A_CLK_FREQ_CORRECTION  5190     // Correction Value for VE3WMB Adafruit Si5351 Breakout board 
-                                              // You need to calibrate your Si5351a and substitute the resulting correction value here.
+#define SI5351A_CLK_FREQ_CORRECTION  4300     // Correction Value for VE3WMB Adafruit Si5351 Breakout board 
+                                              // You need to calibrate your Si5351a and substitute the your correction value here.
+                                              // See OrionSi5351_calibration.ino sketch
                                               
 /**************************************************************************************
  * GPS CONFIGURATION Parameters - FOR NOW IT ASSUMES THE USE OF A HARWARE SERIAL PORT *

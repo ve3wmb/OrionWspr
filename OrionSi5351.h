@@ -22,6 +22,7 @@
 #include <int.h>
 
 // Definitions for Software I2C. Remove the following if using the Wire.h library for hardware I2C
+// These are assuming Hardware Pin assignments compatible with the QRP Labs U3S & U3S-clones
 #define SCL_PIN 1  //PB1
 #define SCL_PORT PORTB
 #define SDA_PIN 2 //PD2

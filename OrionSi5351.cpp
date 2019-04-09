@@ -18,13 +18,14 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <int.h>
+#include "OrionXConfig.h"
 #include "OrionSi5351.h"
 #include <SoftWire.h>  // Needed for Software I2C otherwise include <Wire.h>
 
 uint64_t si5351bx_vcoa = (SI5351BX_XTAL*SI5351BX_MSA);  // 25mhzXtal calibrate
-uint64_t si5351_correction = 5190; //Frequency correction factor for Adafruit Si5351a Breakout Board
+int32_t si5351_correction = SI5351A_CLK_FREQ_CORRECTION;  //Frequency correction factor calculated using OrionSi5351_calibration sketch
 uint8_t  si5351bx_rdiv = 0;             // 0-7, CLK pin sees fout/(2**rdiv) // Note that 0 means divide by 1
-uint8_t  si5351bx_drive[3] = {1, 1, 3}; // 0=2ma 1=4ma 2=6ma 3=8ma for CLK 0,1,2 - Set CLK 2 to 8ma
+uint8_t  si5351bx_drive[3] = {3, 3, 3}; // 0=2ma 1=4ma 2=6ma 3=8ma for CLK 0,1,2 - Set CLK 0,1,2 to 8ma
 uint8_t  si5351bx_clken = 0xFF;         // Private, all CLK output drivers off
 
 // Create an instance of Softwire named Wire. If you are using Hardware I2C then create an instance of Wire instead.

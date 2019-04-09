@@ -135,7 +135,6 @@ void encode_and_tx_wspr_msg1()
   }
 
   // Turn off the clock output, we are done sending the message
-  //si5351.set_clock_pwr(SI5351A_WSPRTX_CLK_NUM, 0);
   si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF);
 
   if (TX_LED_PIN != 0) { // If we are using the TX LED turn it off
@@ -165,12 +164,12 @@ void setup()
   si5351bx_init();
   
   // Setup WSPR TX output
-  
   si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM,(g_beacon_freq_hz * 100ULL));
   si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF); // Disable the clock initially
 
   // Temporarily disable PARK until we sort out whether we need a frequency higher than 109 Mhz. which is the limit with the current SI5351a
   // configuration. 
+  
   // Set PARK CLK Output - Note that we leave SI5351A_PARK_CLK_NUM running at 150 Mhz to keep the SI5351 temperature more constant
   // This minimizes thermal induced drift during WSPR transmissions. The idea is borrowed from G0UPL's PARK feature on the QRP Labs U3S
   //si5351.set_freq(g_park_freq_hz_x100, SI5351A_PARK_CLK_NUM);
