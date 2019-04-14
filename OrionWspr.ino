@@ -88,7 +88,7 @@ TinyGPS gps;
 unsigned long g_beacon_freq_hz = BEACON_FREQ_HZ;      // The Beacon Frequency in Hz
 
 // Use this on clk SI5351A_PARK_CLK_NUM to keep the SI5351a warm to avoid thermal drift during WSPR transmissions
-uint64_t g_park_freq_hz_x100 = 15000000000ULL;            // 150 MHz, in hundredths of hertz
+uint64_t g_park_freq_hz = 108000000ULL;            // 108 MHz,in hertz
 
 char g_beacon_callsign[7] = BEACON_CALLSIGN_6CHAR;
 
@@ -120,6 +120,9 @@ void encode_and_tx_wspr_msg1()
   // Reset the tone to 0 and turn on the TX output
   si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM,(g_beacon_freq_hz * 100ULL));
 
+  // Turn off the PARK clock
+  si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
+
   if (TX_LED_PIN != 0) { // If we are using the TX LED turn it on
     digitalWrite(TX_LED_PIN, HIGH);
   }
@@ -134,8 +137,11 @@ void encode_and_tx_wspr_msg1()
     while (!g_proceed);
   }
 
-  // Turn off the clock output, we are done sending the message
+  // Turn off the WSPR TX clock output, we are done sending the message
   si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF);
+
+  // Re-enable the Park Clock
+  si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_ON); 
 
   if (TX_LED_PIN != 0) { // If we are using the TX LED turn it off
     digitalWrite(TX_LED_PIN, LOW);
@@ -166,15 +172,10 @@ void setup()
   // Setup WSPR TX output
   si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM,(g_beacon_freq_hz * 100ULL));
   si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF); // Disable the clock initially
-
-  // Temporarily disable PARK until we sort out whether we need a frequency higher than 109 Mhz. which is the limit with the current SI5351a
-  // configuration. 
   
-  // Set PARK CLK Output - Note that we leave SI5351A_PARK_CLK_NUM running at 150 Mhz to keep the SI5351 temperature more constant
+  // Set PARK CLK Output - Note that we leave SI5351A_PARK_CLK_NUM running at 108 Mhz to keep the SI5351 temperature more constant
   // This minimizes thermal induced drift during WSPR transmissions. The idea is borrowed from G0UPL's PARK feature on the QRP Labs U3S
-  //si5351.set_freq(g_park_freq_hz_x100, SI5351A_PARK_CLK_NUM);
-  //si5351.drive_strength(SI5351A_PARK_CLK_NUM, SI5351_DRIVE_8MA); // Set for max power
-  //si5351.set_clock_pwr(SI5351A_PARK_CLK_NUM , 1); // Enable PARK Clock and keep it running 
+  si5351bx_setfreq(SI5351A_PARK_CLK_NUM,(g_park_freq_hz * 100ULL)); // Turn on Park Clock
 
   // Set up Timer1 for interrupts every symbol period (i.e 1.46 Hz)
   // The formula to calculate this is CPU_CLOCK_SPEED_HZ / (PRESCALE_VALUE) x (WSPR_CTC + 1)
