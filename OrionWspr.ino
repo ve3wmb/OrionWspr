@@ -40,7 +40,7 @@
 // Required Libraries
 // ------------------
 // Etherkit JTEncode (Library Manager)  https://github.com/etherkit/JTEncode
-// Time (Library Manager)   https://github.com/PaulStoffregen/Time
+// Time (Library Manager)   https://github.com/PaulStoffregen/Time - This provides a Unix-like System Time capability
 // SoftWire (https://github.com/stevemarple/SoftWire) - (assumes that you are using Software I2C otherwise substitute Wire.h)
 // TinyGPS (Library Manager) http://arduiniana.org/libraries/TinyGPS/
 //
@@ -73,6 +73,7 @@
 //#include <Wire.h>     / Only uncomment this if you are using Hardware I2C to talk to the Si5351a
 #include "OrionXConfig.h"
 #include "OrionSi5351.h"
+#include "OrionStateMachine.h"
 
 // NOTE THAT ALL #DEFINES THAT ARE INTENDED TO BE USER CONFIGURABLE ARE LOCATED IN OrionXConfig.h.
 // DON'T TOUCH ANYTHING DEFINED IN THIS FILE WITHOUT SOME VERY CAREFUL CONSIDERATION.
@@ -96,6 +97,7 @@ char g_beacon_callsign[7] = BEACON_CALLSIGN_6CHAR;
 char g_grid_loc[5] = BEACON_GRID_SQ_4CHAR;
 uint8_t g_tx_pwr_dbm = BEACON_TX_PWR_DBM;
 uint8_t g_tx_buffer[SYMBOL_COUNT];
+OrionAction g_current_action = NO_ACTION;
 
 // Global variables used in ISRs
 volatile bool g_proceed = false;
@@ -146,10 +148,91 @@ void encode_and_tx_wspr_msg1()
   if (TX_LED_PIN != 0) { // If we are using the TX LED turn it off
     digitalWrite(TX_LED_PIN, LOW);
   }
+
+  delay(1000); // Delay one second
 } // end of encode_and_tx_wspr_msg1()
+
+
+void set_time(){
+  
+  // Get the time from the GPS when it is ready
+  while (Serial.available()) {
+    if (gps.encode(Serial.read())) {
+
+      // process gps messages when TinyGPS reports new data...
+      unsigned long age;
+      int Year;
+      byte Month, Day, Hour, Minute, Second;
+
+      gps.crack_datetime(&Year, &Month, &Day, &Hour, &Minute, &Second, NULL, &age);
+
+      if (age < 500) {
+        // set the Time to the latest GPS reading
+        // Setting the clock this frequently seems like overkill but it works.
+        // This strategy will be revisited as the code is expanded and updated with new functionality
+        setTime(Hour, Minute, Second, Day, Month, Year);
+      }
+    }
+  } // end while
+
+  if (SYNC_LED_PIN != 0) {               // If we are using the SYNC_LED
+    if (timeStatus() == timeSet) {
+      digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
+    }
+    else {
+      digitalWrite(SYNC_LED_PIN, LOW);  // LED off if time needs refresh
+    }
+  }
+  
+}  // end set_time()
+
+
+// This is where all of the work gets triggered by processing Actions returned by the state machine.
+// We don't need to worry about state we just do what we are told. 
+void process_orion_sm_action (OrionAction action) {
+  
+  switch (action) {
+
+    /*
+    case NO_ACTION : {
+      break;
+    }
+    
+    case DO_CALIBRATION_ACTION : {
+      break;
+    }
+    
+    case GET_TELEMETRY_ACTION : {
+      break;
+    }
+    */
+    case TX_WSPR_MSG1_ACTION : {
+      // Encode and transmit the Primary WSPR Message
+      encode_and_tx_wspr_msg1();
+      
+      // Tell the Orion state machine that we are done tranmitting the Primary WSPR message and update the current_action
+      g_current_action = orion_state_machine(PRIMARY_WSPR_TX_DONE_EV);
+      break;  
+    }
+
+    /*
+    case TX_WSPR_MSG2_ACTION : {
+      break;
+    }
+    */
+    
+    default : {
+      break;
+    }
+    
+  } // select
+  
+} //  process_orion_sm_action
 
 void setup()
 {
+   
+  
   // Use the TX_LED_PIN as a transmit indicator, but only if it is non-zero
   if (TX_LED_PIN != 0) {
     pinMode(TX_LED_PIN, OUTPUT);
@@ -196,47 +279,31 @@ void setup()
   OCR1A = WSPR_CTC;       // Set up interrupt trigger count.
 
   interrupts();            // Re-enable interrupts.
+
+  // Set the intial state for the Orion Beacon State Machine
+  orion_sm_begin(); 
+  
+  // Tell the state machine that we are done SETUP
+  g_current_action = orion_state_machine(SETUP_DONE_EV);
+  
 } // end setup()
 
 
 void loop()
 {
-
-  // Get the time from the GPS when it is ready
-  while (Serial.available()) {
-    if (gps.encode(Serial.read())) {
-
-      // process gps messages when TinyGPS reports new data...
-      unsigned long age;
-      int Year;
-      byte Month, Day, Hour, Minute, Second;
-
-      gps.crack_datetime(&Year, &Month, &Day, &Hour, &Minute, &Second, NULL, &age);
-
-      if (age < 500) {
-        // set the Time to the latest GPS reading
-        // Setting the clock this frequently seems like overkill but it works.
-        // This strategy will be revisited as the code is expanded and updated with new functionality
-        setTime(Hour, Minute, Second, Day, Month, Year);
-      }
-    }
-  }
-
-  if (SYNC_LED_PIN != 0) {               // If we are using the SYNC_LED
-    if (timeStatus() == timeSet) {
-      digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
-    }
-    else {
-      digitalWrite(SYNC_LED_PIN, LOW);  // LED off if time needs refresh
-    }
-  }
+  // This loop constantly updates the system time from the GPSand acts as a scheduler for the operation of the Orion Beacon
+  
+  // Update the system clock time using the GPS
+  set_time(); 
 
   // We beacon every 10th minute of the hour so we use minute()modulo 10 (i.e. on 00, 10, 20, 30, 40, 50)
-  // WSPR should start on the 1st second of the minute, but there's a slight delay
-  // in this code because it is limited to 1 second resolution.
   if ((timeStatus() == timeSet) && ((minute() % 10) == 0) && (second() == 0)) {
-    encode_and_tx_wspr_msg1();
-    delay(1000); // Delay one second
+    // Primary WSPR transmission should start on the 1st second of the minute, but there's a slight delay
+    // in this code because it is limited to 1 second resolution.
+    g_current_action = orion_state_machine(PRIMARY_WSPR_TX_TIME_EV);   
   }
 
+// This triggers actual work when the state machine returns an OrionAction != NO_ACTION 
+  process_orion_sm_action(g_current_action); 
+  
 } // end loop ()
