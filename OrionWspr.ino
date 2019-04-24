@@ -74,6 +74,7 @@
 #include "OrionXConfig.h"
 #include "OrionSi5351.h"
 #include "OrionStateMachine.h"
+#include "OrionSerialMonitor.h"
 
 // NOTE THAT ALL #DEFINES THAT ARE INTENDED TO BE USER CONFIGURABLE ARE LOCATED IN OrionXConfig.h.
 // DON'T TOUCH ANYTHING DEFINED IN THIS FILE WITHOUT SOME VERY CAREFUL CONSIDERATION.
@@ -153,7 +154,7 @@ void encode_and_tx_wspr_msg1()
 } // end of encode_and_tx_wspr_msg1()
 
 
-void set_time(){
+void set_system_time(){
   
   // Get the time from the GPS when it is ready
   while (Serial.available()) {
@@ -184,7 +185,7 @@ void set_time(){
     }
   }
   
-}  // end set_time()
+}  // end set_system_time()
 
 
 // This is where all of the work gets triggered by processing Actions returned by the state machine.
@@ -210,6 +211,8 @@ void process_orion_sm_action (OrionAction action) {
       // Encode and transmit the Primary WSPR Message
       encode_and_tx_wspr_msg1();
       
+      orion_log_wspr_tx(PRIMARY_WSPR_MSG); // If TX Logging is enabled then ouput a log
+      
       // Tell the Orion state machine that we are done tranmitting the Primary WSPR message and update the current_action
       g_current_action = orion_state_machine(PRIMARY_WSPR_TX_DONE_EV);
       break;  
@@ -229,16 +232,28 @@ void process_orion_sm_action (OrionAction action) {
   
 } //  process_orion_sm_action
 
-void setup()
-{
-   
+// This is the scheduler code that determines the Orion Beacon schedule
+OrionAction orion_scheduler() {
+  OrionAction action = NO_ACTION;
   
+   // We beacon every 10th minute of the hour so we use minute()modulo 10 (i.e. on 00, 10, 20, 30, 40, 50)
+  if ((timeStatus() == timeSet) && ((minute() % 10) == 0) && (second() == 0)) {
+    // Primary WSPR transmission should start on the 1st second of the minute, but there's a slight delay
+    // in this code because it is limited to 1 second resolution.
+    action = orion_state_machine(PRIMARY_WSPR_TX_TIME_EV);   
+  }
+  
+  return action;
+} // end orion_scheduler()
+
+
+void setup()
+{  
   // Use the TX_LED_PIN as a transmit indicator, but only if it is non-zero
   if (TX_LED_PIN != 0) {
     pinMode(TX_LED_PIN, OUTPUT);
     digitalWrite(TX_LED_PIN, LOW);
   }
-
 
   // Use the SYNC_LED_PIN to indicate the beacon has valid time from the GPS, but only if it is non-zero
   if (SYNC_LED_PIN != 0) {
@@ -280,6 +295,9 @@ void setup()
 
   interrupts();            // Re-enable interrupts.
 
+  // Setup the software serial port for the serial monitor interface
+  serial_monitor_begin();
+  
   // Set the intial state for the Orion Beacon State Machine
   orion_sm_begin(); 
   
@@ -291,19 +309,28 @@ void setup()
 
 void loop()
 {
-  // This loop constantly updates the system time from the GPSand acts as a scheduler for the operation of the Orion Beacon
+  // This loop constantly updates the system time from the GPS and acts as the scheduler for the operation of the Orion Beacon
   
   // Update the system clock time using the GPS
-  set_time(); 
+  set_system_time(); 
 
+  /*
   // We beacon every 10th minute of the hour so we use minute()modulo 10 (i.e. on 00, 10, 20, 30, 40, 50)
   if ((timeStatus() == timeSet) && ((minute() % 10) == 0) && (second() == 0)) {
     // Primary WSPR transmission should start on the 1st second of the minute, but there's a slight delay
     // in this code because it is limited to 1 second resolution.
     g_current_action = orion_state_machine(PRIMARY_WSPR_TX_TIME_EV);   
   }
-
-// This triggers actual work when the state machine returns an OrionAction != NO_ACTION 
-  process_orion_sm_action(g_current_action); 
+*/
+  // Call the scheduler to determine if it is time for any action
+  g_current_action = orion_scheduler();
   
+  // This triggers actual work when the state machine returns an OrionAction != NO_ACTION 
+  if (g_current_action != NO_ACTION) {
+    process_orion_sm_action(g_current_action); 
+  }
+
+  // Process serial monitor input
+  serial_monitor_interface();
+ 
 } // end loop ()

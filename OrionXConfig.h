@@ -61,6 +61,8 @@
 // GPS Serial port Baud rate - For now only a hardware serial connection to the GPS is supported. 
 #define GPS_SERIAL_BAUD         9600          // Baudrate for the GPS Serial port
 
+#define MONITOR_SERIAL_BAUD     9600          // Baudrate for Orion Serial Monitor 
+
 
 /***********************************************************
  * Parameters dependant on Processor CPU Speed
@@ -73,5 +75,8 @@
 // ie. #define WSPR_CTC                10672       // CTC value for WSPR on Arduino using 16 Mhz clock (i.e. Nano, Uno etc)
 // The formula to calculate WSPR_CTC is: 1.4648 = CPU_CLOCK_SPEED_HZ / (PRESCALE_VALUE) x (WSPR_CTC + 1)
 #define WSPR_CTC                5336               // CTC value for WSPR on Arduino using an 8 Mhz clock (i.e. Arduino Pro Mini 3.3v 8 Mhz)
-   
+
+
+ // Type Definitions
+ enum OrionWsprMsgType{PRIMARY_WSPR_MSG, SECONDARY_WSPR_MSG};
 #endif

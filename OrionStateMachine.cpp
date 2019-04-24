@@ -17,7 +17,9 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "OrionSerialMonitor.h"
 #include "OrionStateMachine.h"
+
 
 OrionState g_current_orion_state = POWERUP_ST;
 OrionState g_previous_orion_state = POWERUP_ST;
@@ -50,6 +52,9 @@ OrionAction orion_state_machine(OrionEvent event) {
   OrionAction next_action = NO_ACTION; // Always default to NO_ACTION
   g_current_orion_event = event;
 
+  // Pre_sm trace logging
+  orion_sm_trace_pre(byte(g_current_orion_state), event); 
+  
   switch (g_current_orion_state) {
 
     case  POWERUP_ST : { //executing setup()
@@ -60,7 +65,7 @@ OrionAction orion_state_machine(OrionEvent event) {
           next_action = NO_ACTION;
         }
         else
-          orion_sm_no_op();
+          swerr(1, event); // This event is not supported in this state
         break;
       }
 
@@ -85,7 +90,7 @@ OrionAction orion_state_machine(OrionEvent event) {
           next_action = TX_WSPR_MSG1_ACTION; // Start Transmitting the Primary WSPR Message
         }
         else
-          orion_sm_no_op();
+         // swerr(2, event); // This event is not supported in this state
         break;
       }
 
@@ -114,6 +119,9 @@ OrionAction orion_state_machine(OrionEvent event) {
 
   g_previous_orion_event = event;
   g_current_orion_event = NO_EV;
+
+  // Post_sm trace logging 
+  orion_sm_trace_post(byte(g_current_orion_state), event, next_action);
 
   return next_action; 
 
