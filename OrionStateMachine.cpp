@@ -46,22 +46,22 @@ void orion_sm_change_state( OrionState new_state) {
 
 
 // This is the event processor that implements the core of the Orion State Machine
-// It returns an Action of type OrionAction to trigger work. 
+// It returns an Action of type OrionAction to trigger work.
 OrionAction orion_state_machine(OrionEvent event) {
-  
+
   OrionAction next_action = NO_ACTION; // Always default to NO_ACTION
   g_current_orion_event = event;
 
   // Pre_sm trace logging
-  orion_sm_trace_pre(byte(g_current_orion_state), event); 
-  
+  orion_sm_trace_pre(byte(g_current_orion_state), event);
+
   switch (g_current_orion_state) {
 
     case  POWERUP_ST : { //executing setup()
 
         if (event == SETUP_DONE_EV) {
-          // Done setup now wait until it is time to TX the Primary WSPR Msg
-          orion_sm_change_state(WAIT_TX_PRIMARY_WSPR_ST);
+          // Done setup now wait until it is time to get the Telemetry data and position
+          orion_sm_change_state(WAIT_TELEMETRY_ST);
           next_action = NO_ACTION;
         }
         else
@@ -75,33 +75,50 @@ OrionAction orion_state_machine(OrionEvent event) {
 
       case  CALIBRATE_ST :  // calibrating Si5351a and ATMega328p clocks
              orion_sm_no_op();
-
-      case   WAIT_TELEMETRY_ST : // Waiting for telemetry gathering cycle
-             orion_sm_no_op();
-
-      case  TELEMETRY_ST :  // gathering/calculating telemetry data
-             orion_sm_no_op();
     */
 
-    case  WAIT_TX_PRIMARY_WSPR_ST : { // waiting for Primary WSPR Msg TX Window
-
-        if (event == PRIMARY_WSPR_TX_TIME_EV) { // Time to send Primary WSPR MSG
-          orion_sm_change_state(TX_PRIMARY_WSPR_ST);
-          next_action = TX_WSPR_MSG1_ACTION; // Start Transmitting the Primary WSPR Message
-        }
-        else
-         // swerr(2, event); // This event is not supported in this state
-        break;
+    case   WAIT_TELEMETRY_ST :  // Waiting for telemetry gathering cycle
+      if (event == TELEMETRY_TIME_EV) {
+        // Time to get the Telemetery info
+        orion_sm_change_state(TELEMETRY_ST);
+        next_action = GET_TELEMETRY_ACTION;
       }
+      else
+        swerr(2, event); // This event is not supported in this state
+      break;
+
+
+
+    case  TELEMETRY_ST :  // done gathering/calculating telemetry data
+      if (event == TELEMETRY_DONE_EV) {
+        orion_sm_change_state(WAIT_TX_PRIMARY_WSPR_ST);
+        next_action = NO_ACTION;
+      }
+      else
+        swerr(3, event); // This event is not supported in this state
+      break;
+
+
+    case  WAIT_TX_PRIMARY_WSPR_ST :  // waiting for Primary WSPR Msg TX Window
+
+      if (event == PRIMARY_WSPR_TX_TIME_EV) { // Time to send Primary WSPR MSG
+        orion_sm_change_state(TX_PRIMARY_WSPR_ST);
+        next_action = TX_WSPR_MSG1_ACTION; // Start Transmitting the Primary WSPR Message
+      }
+      else
+        swerr(4, event); // This event is not supported in this state
+      break;
+
 
     case  TX_PRIMARY_WSPR_ST : { // transmitting Primary WSPR Msg
-      
+
         if (event == PRIMARY_WSPR_TX_DONE_EV) { // Primary WSPR Transmission Complete
-          orion_sm_change_state(WAIT_TX_PRIMARY_WSPR_ST);
-          next_action = NO_ACTION; 
+          // Now we wait for another time event to trigger the telemetry cycle
+          orion_sm_change_state(WAIT_TELEMETRY_ST);
+          next_action = NO_ACTION;
         }
         else
-          orion_sm_no_op();
+          swerr(5, event); // This event is not supported in this state
         break;
       }
 
@@ -113,16 +130,16 @@ OrionAction orion_state_machine(OrionEvent event) {
               orion_sm_no_op();
     */
 
-    default : orion_sm_no_op(); // If we end up here it is an error as we have and unimplemented state.
+    default : swerr(5, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.
 
   } // end switch
 
   g_previous_orion_event = event;
   g_current_orion_event = NO_EV;
 
-  // Post_sm trace logging 
+  // Post_sm trace logging
   orion_sm_trace_post(byte(g_current_orion_state), event, next_action);
 
-  return next_action; 
+  return next_action;
 
 }

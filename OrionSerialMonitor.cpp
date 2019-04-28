@@ -105,11 +105,12 @@ void orion_sm_trace_post(byte state, byte processed_event,  byte resulting_actio
     
 }
 
-void orion_log_wspr_tx(OrionWsprMsgType msgType){
+void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[]){
   if (g_txlog_on_off == OFF) return; 
   
   print_date_time();
-  softSerial.println(F("WSPR TX Complete - Primary Msg"));
+  softSerial.print(F("WSPR TX Complete - GRIDSQ: "));
+  softSerial.println(grid);
   print_monitor_prompt();
   
 }
