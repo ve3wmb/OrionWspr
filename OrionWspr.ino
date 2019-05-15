@@ -100,6 +100,8 @@ char g_grid_sq_6char[7] = "";
 uint8_t g_tx_pwr_dbm = BEACON_TX_PWR_DBM;
 uint8_t g_tx_buffer[SYMBOL_COUNT];
 
+OrionTelemetryData g_orion_telemetry; // This is the structure varible containing all of the telemetry data. Type defined in OrionXConfig.h
+
 // Globals used by the Orion Scheduler
 OrionAction g_current_action = NO_ACTION;
 
@@ -120,10 +122,27 @@ ISR(TIMER1_COMPA_vect)
 
 // ------- Functions ------------------
 
-// Calculate the 6 Character Maidenhead Gridsquare from the Lat and Long Coordinates
-// We follow the convention that West and South are negative Lat/Long.
-void calculate_gridsquare_6char(float lat, float lon) {
+unsigned long get_tx_frequency(){
+  /********************************************************************************   
+  * Get the frequency for the next transmission cycle
+  * This function also implements the QRM Avoidance feature
+  * which applies a pseudo-random offset of 0 to 100 hz to the base TX frequency 
+  ********************************************************************************/
+  if (is_qrm_avoidance_on() == false)
+    return BEACON_FREQ_HZ;
+  else { 
+    // QRM Avoidance - add a random number in range of 0 to 100 to the base TX frequency to help avoid QRM
+    return (BEACON_FREQ_HZ + random(181)); // base freq + 0 to 180 hz random offset   
+  }
+   
+}
 
+
+void calculate_gridsquare_6char(float lat, float lon) {
+    /*************************************************************************************** 
+    * Calculate the 6 Character Maidenhead Gridsquare from the Lat and Long Coordinates
+    * We follow the convention that West and South are negative Lat/Long.
+    ***************************************************************************************/
   // For now this puts the calculated 6 character Maidenhead Grid square into the global character
   // array g_grid_sq_6char[]
 
@@ -158,8 +177,11 @@ void calculate_gridsquare_6char(float lat, float lon) {
   g_grid_sq_6char[6] = (char)0;
 } // calculate_gridsquare_6char
 
-// Get the GPS position and telemetry data
+
 void get_position_and_telemetry() {
+  /******************************************
+  * Get the GPS position and telemetry data
+  ******************************************/
 
   // For now this takes no arguments.
   // As it is expanded we will pass in a pointer to a structure that
@@ -177,12 +199,16 @@ void get_position_and_telemetry() {
   for (i = 0; i < 4; i++ ) g_grid_loc[i] = g_grid_sq_6char[i];
   g_grid_loc[i] = (char) 0; // g_grid_loc[4]
 
+  g_beacon_freq_hz = get_tx_frequency();
+
 } //end get_position_and_telemetry
 
-// Transmit the Primary WSPR Message
-// Loop through the transmit buffer, transmitting one character at a time.
-void encode_and_tx_wspr_msg1()
-{
+
+void encode_and_tx_wspr_msg1() {
+  /**************************************************************************
+  * Transmit the Primary WSPR Message
+  * Loop through the transmit buffer, transmitting one character at a time.
+  * ************************************************************************/
   uint8_t i;
 
   // Encode the primary message paramters into the TX Buffer
@@ -223,8 +249,9 @@ void encode_and_tx_wspr_msg1()
 
 
 void set_system_time() {
-
-  // Get the time from the GPS when it is ready
+  /*********************************************
+  * Get the time from the GPS when it is ready
+  * ********************************************/
   while (Serial.available()) {
     if (gps.encode(Serial.read())) {
 
@@ -256,10 +283,13 @@ void set_system_time() {
 }  // end set_system_time()
 
 
-// This is where all of the work gets triggered by processing Actions returned by the state machine.
-// We don't need to worry about state we just do what we are told.
-void process_orion_sm_action (OrionAction action) {
 
+void process_orion_sm_action (OrionAction action) {
+  /****************************************************************************************************
+  * This is where all of the work gets triggered by processing Actions returned by the state machine.
+  * We don't need to worry about state we just do what we are told.
+  ****************************************************************************************************/
+ 
   switch (action) {
 
 
@@ -284,7 +314,7 @@ void process_orion_sm_action (OrionAction action) {
         // Encode and transmit the Primary WSPR Message
         encode_and_tx_wspr_msg1();
 
-        orion_log_wspr_tx(PRIMARY_WSPR_MSG, g_grid_sq_6char); // If TX Logging is enabled then ouput a log
+        orion_log_wspr_tx(PRIMARY_WSPR_MSG, g_grid_sq_6char, g_beacon_freq_hz); // If TX Logging is enabled then ouput a log
 
         // Tell the Orion state machine that we are done tranmitting the Primary WSPR message and update the current_action
         g_current_action = orion_state_machine(PRIMARY_WSPR_TX_DONE_EV);
@@ -305,8 +335,11 @@ void process_orion_sm_action (OrionAction action) {
 
 } //  process_orion_sm_action
 
-// This is the scheduler code that determines the Orion Beacon schedule
+
 OrionAction orion_scheduler() {
+  /*********************************************************************
+  * This is the scheduler code that determines the Orion Beacon schedule
+  **********************************************************************/
   byte Second; // The current second
   byte Minute; // The current minute
   byte i;
@@ -357,8 +390,8 @@ OrionAction orion_scheduler() {
 } // end orion_scheduler()
 
 
-void setup()
-{
+void setup(){
+
   // Use the TX_LED_PIN as a transmit indicator, but only if it is non-zero
   if (TX_LED_PIN != 0) {
     pinMode(TX_LED_PIN, OUTPUT);
@@ -414,12 +447,16 @@ void setup()
   // Tell the state machine that we are done SETUP
   g_current_action = orion_state_machine(SETUP_DONE_EV);
 
+  // Use pin A0 (not connected) to generate a random seed for QRM avoidance feature
+  randomSeed(analogRead(0));
+
 } // end setup()
 
 
-void loop()
-{
-  // This loop constantly updates the system time from the GPS and acts as the scheduler for the operation of the Orion Beacon
+void loop(){
+  /****************************************************************************************************************************
+  * This loop constantly updates the system time from the GPS and calls the scheduler for the operation of the Orion Beacon
+  ****************************************************************************************************************************/
 
   // Update the system clock time using the GPS
   set_system_time();
@@ -427,11 +464,11 @@ void loop()
   // Call the scheduler to determine if it is time for any action
   g_current_action = orion_scheduler();
 
-  // This triggers actual work when the state machine returns an OrionAction != NO_ACTION
+  // This triggers actual work when the state machine returns an OrionAction
   if (g_current_action != NO_ACTION) {
     process_orion_sm_action(g_current_action);
   }
-
+  
   // Process serial monitor input
   serial_monitor_interface();
 

@@ -24,7 +24,16 @@
 
 static bool g_debug_on_off = OFF;
 static bool g_txlog_on_off = OFF;
+static bool g_qrm_avoidance_on_off = ON;
+ 
 NeoSWSerial softSerial(12, 11);  // RX, TX  -- Arduino Pro Mini pins 12 and 11 (aka MISO MOSI of six pin ICSP header on DL6OW boards)
+
+bool is_qrm_avoidance_on(){
+  if (g_qrm_avoidance_on_off == OFF)
+    return false;
+  else
+    return true;
+}
 
 void print_monitor_prompt(){
   softSerial.print(F("> "));
@@ -71,7 +80,7 @@ void swerr(byte swerr_num, int data){
     
 }
 void println_cmd_list(){
-  softSerial.println(F("cmds: v = f/w version, d = toggle debug trace on/off, l = toggle TX log on/off, ? = cmd list"));
+  softSerial.println(F("cmds: v = f/w version, d = toggle debug trace on/off, l = toggle TX log on/off, q = toggle qrm avoidance on/off, ? = cmd list"));
 }
 
 
@@ -105,12 +114,14 @@ void orion_sm_trace_post(byte state, byte processed_event,  byte resulting_actio
     
 }
 
-void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[]){
+void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq_hz){
   if (g_txlog_on_off == OFF) return; 
   
   print_date_time();
   softSerial.print(F("WSPR TX Complete - GRIDSQ: "));
-  softSerial.println(grid);
+  softSerial.print(grid);
+  softSerial.print(F(" Freq Hz: "));
+  softSerial.println(freq_hz);
   print_monitor_prompt();
   
 }
@@ -164,6 +175,12 @@ void serial_monitor_interface(){
        case 'h': case '?' : // list commands
        flush_input();
        println_cmd_list();
+       break;
+
+       case'q' :
+       flush_input();
+       softSerial.print(F("Orion QRM avoidance is : "));
+       g_qrm_avoidance_on_off = toggle_on_off(g_qrm_avoidance_on_off);
        break;
                
       default:

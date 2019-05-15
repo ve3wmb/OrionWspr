@@ -1,7 +1,7 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.09a
+Consider this to be Alpha Software. Current version is: v0.10a
 
 In an effort to make this code compatible with U3S-Clone boards (N2NXZ, DL6OW) it now uses the SoftWire.h
 library rather than Wire.h to implement software I2C communication with the Si5351a. 
@@ -12,8 +12,8 @@ Current Limitations :
 
 Current compile stats are:
 
-Sketch uses 16788 bytes or 54% (previousyl 45%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 946 bytes or 946 (previously 45%) of dynamic memory, leaving 1102 bytes for local variables. 
+Sketch uses 17620 bytes or 57% (previously 54%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 954 bytes or 46% (previously 45%) of dynamic memory, leaving 1094 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the CORRECTION value.
@@ -28,6 +28,11 @@ a=alpha b=beta, r=release
 
 
 Changelog : 
+
+v0.10a - added "QRM avoidance" feature which applies a random frequency offset in the range of 0 to 180 Hz to the 
+base (bottom + 10 hz) transmit frequency for that transmit cycle. Also added the capability disable this feature via 
+the Orion Serial Monitor for testing purposes. Minor changes made to add some preliminary data structures to support
+further telemetry data. 
 
 v0.09a - added two additonal states WAIT_TELEMETRY_ST and TELEMETRY_ST and associated events and actions 
 (see State Machine Diagram for details). Added support for the calculation of 6 character GRID
