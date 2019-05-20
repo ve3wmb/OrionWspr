@@ -130,7 +130,7 @@ OrionAction orion_state_machine(OrionEvent event) {
               orion_sm_no_op();
     */
 
-    default : swerr(5, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.
+    default : swerr(6, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.
 
   } // end switch
 

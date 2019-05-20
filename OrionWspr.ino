@@ -42,7 +42,9 @@
 // Etherkit JTEncode (Library Manager)  https://github.com/etherkit/JTEncode
 // Time (Library Manager)   https://github.com/PaulStoffregen/Time - This provides a Unix-like System Time capability
 // SoftWire (https://github.com/stevemarple/SoftWire) - (assumes that you are using Software I2C otherwise substitute Wire.h)
-// TinyGPS (Library Manager) http://arduiniana.org/libraries/TinyGPS/
+// TinyGPS (Library Manager) http://arduiniana.org/libraries/TinyGPS/ - **** remove this ****
+// NeoGps (https://github.com/SlashDevin/NeoGPS) - NMEA and uBlox GPS parser.
+// LightChrono (https://github.com/SofaPirate/Chrono) - Simple Chronometer Library
 //
 // License
 // -------
@@ -68,16 +70,24 @@
 
 #include <JTEncode.h>
 #include <int.h>
+//#include <TinyGPS.h>
+#include <NMEAGPS.h>  // NeoGps
 #include <TimeLib.h>
-#include <TinyGPS.h>
-//#include <Wire.h>     / Only uncomment this if you are using Hardware I2C to talk to the Si5351a
+//#include <Wire.h>     // Only uncomment this if you are using Hardware I2C to talk to the Si5351a
+#include <LightChrono.h>
 #include "OrionXConfig.h"
 #include "OrionSi5351.h"
 #include "OrionStateMachine.h"
 #include "OrionSerialMonitor.h"
 
+
+
 // NOTE THAT ALL #DEFINES THAT ARE INTENDED TO BE USER CONFIGURABLE ARE LOCATED IN OrionXConfig.h.
 // DON'T TOUCH ANYTHING DEFINED IN THIS FILE WITHOUT SOME VERY CAREFUL CONSIDERATION.
+
+// Port Defintions for NeoGps
+#define gpsPort Serial
+#define GPS_PORT_NAME "Serial"
 
 // WSPR specific defines. DO NOT CHANGE THESE VALUES, EVER!
 #define TONE_SPACING            146                 // ~1.46 Hz
@@ -85,7 +95,17 @@
 
 // Globals
 JTEncode jtencode;
-TinyGPS gps;
+
+// GPS related
+static NMEAGPS gps;
+static gps_fix fix; 
+
+//Time related
+LightChrono g_chrono; 
+
+// We initialize this to 61 so the first time through the scheduler we can't possibly match the current second
+// This forces the scheduler to run on its very first call. 
+byte g_last_second = 61; 
 
 unsigned long g_beacon_freq_hz = BEACON_FREQ_HZ;      // The Beacon Frequency in Hz
 
@@ -104,10 +124,6 @@ OrionTelemetryData g_orion_telemetry; // This is the structure varible containin
 
 // Globals used by the Orion Scheduler
 OrionAction g_current_action = NO_ACTION;
-
-// We initialize this to 61 so the first time through the scheduler we can't possibly match the current second
-// This forces the scheduler to run on its very first call. 
-byte g_last_second = 61; 
 
 // Global variables used in ISRs
 volatile bool g_proceed = false;
@@ -186,18 +202,17 @@ void get_position_and_telemetry() {
   // For now this takes no arguments.
   // As it is expanded we will pass in a pointer to a structure that
   // we populate with all of the telemetry and position information.
-
-  float temp_latitude;
-  float temp_longitude;
   byte i;
-  unsigned long age_of_fix_ms;
+  
+  if (fix.valid.location){
+    calculate_gridsquare_6char(fix.latitude(), fix.longitude()); // Puts 6 character grid square into g_grid_sq_6char[]
 
-  gps.f_get_position(&temp_latitude, &temp_longitude, &age_of_fix_ms);
-  calculate_gridsquare_6char(temp_latitude, temp_longitude); // Puts 6 character grid square into g_grid_sq_6char[]
-
-  // Copy the first four characters of the Grid Square to g_grid_loc[] for use in the Primary WSPR Message
-  for (i = 0; i < 4; i++ ) g_grid_loc[i] = g_grid_sq_6char[i];
-  g_grid_loc[i] = (char) 0; // g_grid_loc[4]
+    // Copy the first four characters of the Grid Square to g_grid_loc[] for use in the Primary WSPR Message
+    for (i = 0; i < 4; i++ ) g_grid_loc[i] = g_grid_sq_6char[i];
+    g_grid_loc[i] = (char) 0; // g_grid_loc[4]
+  }
+  else
+    swerr(7,0); // For now just Swerr if we don't have  valid fix .. we'll sort this out later.
 
   g_beacon_freq_hz = get_tx_frequency();
 
@@ -248,39 +263,42 @@ void encode_and_tx_wspr_msg1() {
 } // end of encode_and_tx_wspr_msg1()
 
 
-void set_system_time() {
+void get_gps_fix_and_time() {
   /*********************************************
-  * Get the time from the GPS when it is ready
+  * Get the latest GPS Fix
   * ********************************************/
-  while (Serial.available()) {
-    if (gps.encode(Serial.read())) {
+  while (gps.available(gpsPort)) {
+    fix = gps.read();
 
-      // process gps messages when TinyGPS reports new data...
-      unsigned long age;
-      int Year;
-      byte Month, Day, Hour, Minute, Second;
-
-      gps.crack_datetime(&Year, &Month, &Day, &Hour, &Minute, &Second, NULL, &age);
-
-      if (age < 500) {
-        // set the Time to the latest GPS reading
-        // Setting the clock this frequently seems like overkill but it works.
-        // This strategy will be revisited as the code is expanded and updated with new functionality
-        setTime(Hour, Minute, Second, Day, Month, Year);
+    if (fix.valid.time) {
+      
+      // If we have a valid fix, set the Time on the Arduino if needed  
+      if ( timeStatus() == timeNotSet ) { // System date/time isn't set so set it
+        setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
+        g_chrono.start();
+        
+        if ((SYNC_LED_PIN != 0) && (timeStatus() == timeSet))  // If we are using the SYNC_LED
+          digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
+        else if (SYNC_LED_PIN != 0)
+          digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off 
       }
-    }
+
+
+      if (g_chrono.hasPassed(TIME_SET_INTERVAL_MS, true)) { // When the time set interval has passed, restart the Chronometer set system time again from GPS
+        setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
+        
+        if ((SYNC_LED_PIN != 0) && (timeStatus() == timeSet))  // If we are using the SYNC_LED
+          digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
+        else if (SYNC_LED_PIN != 0)
+          digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off
+          
+      }
+
+  
+    } // end if fix.valid.time
   } // end while
-
-  if (SYNC_LED_PIN != 0) {               // If we are using the SYNC_LED
-    if (timeStatus() == timeSet) {
-      digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
-    }
-    else {
-      digitalWrite(SYNC_LED_PIN, LOW);  // LED off if time needs refresh
-    }
-  }
-
-}  // end set_system_time()
+  
+}  // end get_gps_fix_and_time()
 
 
 
@@ -405,7 +423,7 @@ void setup(){
   }
 
   // Start Hardware serial communications with the GPS
-  Serial.begin(GPS_SERIAL_BAUD);
+  gpsPort.begin(GPS_SERIAL_BAUD);
 
   // Initialize the Si5351
   si5351bx_init();
@@ -458,8 +476,8 @@ void loop(){
   * This loop constantly updates the system time from the GPS and calls the scheduler for the operation of the Orion Beacon
   ****************************************************************************************************************************/
 
-  // Update the system clock time using the GPS
-  set_system_time();
+  // Get the current GPS fix and update the system clock time if needed
+  get_gps_fix_and_time();
 
   // Call the scheduler to determine if it is time for any action
   g_current_action = orion_scheduler();

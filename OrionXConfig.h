@@ -40,9 +40,11 @@
    Hardware Pin Assignments
  ***********************************************************/
 // Arduino Hardware Pin Configurations - change these to match your specific hardware
-#define TX_LED_PIN              4             // TX LED on D4. Make this 0 if you don't have a pin allocated for TX_LED
-#define SYNC_LED_PIN            7             // LED on PIN D7 indicates GPS time synchronization. Make this 0 if you don't have a pin allocated for TX_LED
+//#define TX_LED_PIN              4             // TX LED on D4. Make this 0 if you don't have a pin allocated for TX_LED
+//#define SYNC_LED_PIN            7             // LED on PIN D7 indicates GPS time synchronization. Make this 0 if you don't have a pin allocated for TX_LED
 // Note the most Arduino Boards have a built-in LED that can be used for either of the above purposes referred to as LED_BUILTIN
+#define TX_LED_PIN 0
+#define SYNC_LED_PIN 0
 
 /***********************************************************
    Si5351a Configuration Parameters
@@ -58,8 +60,8 @@
 *  in OrionSi5351.h is you need a crystal load capacitance other that 8 pf.
 ************************************************************************************************************************/
 //#define SI5351A_CLK_FREQ_CORRECTION  4300     // Correction Value for VE3WMB Adafruit Si5351 Breakout board (Mickey Prototype)
-#define SI5351A_CLK_FREQ_CORRECTION  -13292    // Correction Value for VE3WMB Adafruit Si5351 Breakout board (Donald Prototype)
-//#define SI5351A_CLK_FREQ_CORRECTION  -6813      // Correction value for Stella9.1 board
+//#define SI5351A_CLK_FREQ_CORRECTION  -13292    // Correction Value for VE3WMB Adafruit Si5351 Breakout board (Donald Prototype)
+#define SI5351A_CLK_FREQ_CORRECTION  -6813      // Correction value for Stella9.1 board
                                                
 
 /**************************************************************************************
@@ -69,6 +71,9 @@
 #define GPS_SERIAL_BAUD         9600          // Baudrate for the GPS Serial port
 
 #define MONITOR_SERIAL_BAUD     9600          // Baudrate for Orion Serial Monitor 
+
+// This defines how often we reset the Arduino Clock to the current GPS time 
+#define TIME_SET_INTERVAL_MS   600000         // 60,000 ms / minute x 10 = 10 minutes         
 
 
 /***********************************************************
