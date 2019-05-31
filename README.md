@@ -1,10 +1,7 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.11a
-
-In an effort to make this code compatible with U3S-Clone boards (N2NXZ, DL6OW) it now uses the SoftWire.h
-library rather than Wire.h to implement software I2C communication with the Si5351a. 
+Consider this to be Alpha Software. Current version is: v0.12a
 
 Current Limitations :
 - currently only encodes and sends primary WSPR Message, not secondary message containing Telemetry info.
@@ -12,8 +9,8 @@ Current Limitations :
 
 Current compile stats are:
 
-Sketch uses 18120 bytes or 58% (previously 57%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 946 bytes or 46% (previously 46%) of dynamic memory, leaving 1102 bytes for local variables. 
+Sketch uses 18142 bytes or 59% (previously 58%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 960 bytes or 46% (previously 46%) of dynamic memory, leaving 1088 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the CORRECTION value.
@@ -28,6 +25,10 @@ a=alpha b=beta, r=release
 
 
 Changelog : 
+
+v0.12a - Introduced board configuration. Individual .h files are stored in board_configuration folder and are coped and renamed  
+OrionBoardConfig.h to provide #defines necessary to configure PINs and functionality include HW vs SW Serial (to GPS and debug 
+monitor) as well as HW and SW I2C communication with the Si5351a. See OrionBoardConfig.h for more info. 
 
 v0.11a - replaced TinyGps library with NeoGps to resolve compatibility issues with uBlox NEO-M8N due to TinyGpses
 lack of support for GNSSes other the GPS. 

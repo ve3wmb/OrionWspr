@@ -21,11 +21,6 @@
 #include <Arduino.h>
 #include "OrionXConfig.h"
 
-#define ORION_FW_VERSION "v0.11a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
-                                  // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
-                                  // a = alpha b=beta, r=release
-                                  
-
 void swerr(byte swerr_num, int data);
 void serial_monitor_begin();
 void serial_monitor_interface();

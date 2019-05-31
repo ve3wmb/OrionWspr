@@ -19,8 +19,14 @@
 */
 #include <int.h>
 #include "OrionXConfig.h"
+#include "OrionBoardConfig.h"
 #include "OrionSi5351.h"
-#include <SoftWire.h>  // Needed for Software I2C otherwise include <Wire.h>
+
+#if defined (SI5351A_USES_SOFTWARE_I2C)
+  #include <SoftWire.h>  // Needed for Software I2C otherwise include <Wire.h>
+#else
+  #include <Wire.h> 
+#endif
 
 uint64_t si5351bx_vcoa = (SI5351BX_XTAL*SI5351BX_MSA);  // 25mhzXtal calibrate
 int32_t si5351_correction = SI5351A_CLK_FREQ_CORRECTION;  //Frequency correction factor calculated using OrionSi5351_calibration sketch
@@ -28,8 +34,10 @@ uint8_t  si5351bx_rdiv = 0;             // 0-7, CLK pin sees fout/(2**rdiv) // N
 uint8_t  si5351bx_drive[3] = {3, 3, 3}; // 0=2ma 1=4ma 2=6ma 3=8ma for CLK 0,1,2 - Set CLK 0,1,2 to 8ma
 uint8_t  si5351bx_clken = 0xFF;         // Private, all CLK output drivers off
 
-// Create an instance of Softwire named Wire. If you are using Hardware I2C then create an instance of Wire instead.
-SoftWire Wire = SoftWire();
+// Create an instance of Softwire named Wire if using Software I2C
+#if defined (SI5351A_USES_SOFTWARE_I2C)
+  SoftWire Wire = SoftWire();
+#endif
 
 /** *************  SI5315 routines - (tks Jerry Gaffke, KE7ER)   ***********************
    A minimalist standalone set of Si5351 routines originally written by Jerry Gaffke, KE7ER

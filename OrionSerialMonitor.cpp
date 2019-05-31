@@ -15,18 +15,25 @@
  * If not, see <http://www.gnu.org/licenses/>.
 */
 #include <Arduino.h>
-#include <NeoSWSerial.h>
 #include "OrionSerialMonitor.h"
-#include "OrionXConfig.h""
+#include "OrionXConfig.h"
+#include "OrionBoardConfig.h"
 #include <TimeLib.h>
 #define OFF false
 #define ON true
+#if defined (DEBUG_USES_SW_SERIAL)
+  #include <NeoSWSerial.h>
+#endif
 
 static bool g_debug_on_off = OFF;
 static bool g_txlog_on_off = OFF;
 static bool g_qrm_avoidance_on_off = ON;
  
-NeoSWSerial softSerial(12, 11);  // RX, TX  -- Arduino Pro Mini pins 12 and 11 (aka MISO MOSI of six pin ICSP header on DL6OW boards)
+#if defined (DEBUG_USES_SW_SERIAL)  
+  NeoSWSerial debugSerial(SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN);  // RX, TX
+#else
+  #define debugSerial Serial
+#endif
 
 bool is_qrm_avoidance_on(){
   if (g_qrm_avoidance_on_off == OFF)
@@ -36,22 +43,22 @@ bool is_qrm_avoidance_on(){
 }
 
 void print_monitor_prompt(){
-  softSerial.print(F("> "));
+  debugSerial.print(F("> "));
 }
 
 void print_date_time() {
-  softSerial.print(year());
-  softSerial.print(F("-"));
-  softSerial.print(month());
-  softSerial.print(F("-"));
-  softSerial.print(day());
-  softSerial.print(F(" "));
-  softSerial.print(hour());
-  softSerial.print(F(":"));
-  softSerial.print(minute());
-  softSerial.print(F(":"));
-  softSerial.print(second());
-  softSerial.print(F(" "));
+  debugSerial.print(year());
+  debugSerial.print(F("-"));
+  debugSerial.print(month());
+  debugSerial.print(F("-"));
+  debugSerial.print(day());
+  debugSerial.print(F(" "));
+  debugSerial.print(hour());
+  debugSerial.print(F(":"));
+  debugSerial.print(minute());
+  debugSerial.print(F(":"));
+  debugSerial.print(second());
+  debugSerial.print(F(" "));
 
 }
 
@@ -60,10 +67,10 @@ bool toggle_on_off(bool flag){
   
   if (flag == ON){
     return_flag = OFF;
-    softSerial.println(F(" OFF"));
+    debugSerial.println(F(" OFF"));
   }
   else{
-    softSerial.println(F(" ON"));
+    debugSerial.println(F(" ON"));
   }
   return return_flag;
 }
@@ -72,15 +79,15 @@ bool toggle_on_off(bool flag){
 // swerr_num is unique number 1-255 assigned sequentially (should be unique for each call to swerr). 
 void swerr(byte swerr_num, int data){
   print_date_time();
-  softSerial.print(F("***SWERR: "));
-  softSerial.print(swerr_num);
-  softSerial.print(F(" data dump in hex: "));
-  softSerial.println(data, HEX); 
+  debugSerial.print(F("***SWERR: "));
+  debugSerial.print(swerr_num);
+  debugSerial.print(F(" data dump in hex: "));
+  debugSerial.println(data, HEX); 
   print_monitor_prompt(); 
     
 }
 void println_cmd_list(){
-  softSerial.println(F("cmds: v = f/w version, d = toggle debug trace on/off, l = toggle TX log on/off, q = toggle qrm avoidance on/off, ? = cmd list"));
+  debugSerial.println(F("cmds: v = f/w version, d = toggle debug trace on/off, l = toggle TX log on/off, q = toggle qrm avoidance on/off, ? = cmd list"));
 }
 
 
@@ -90,11 +97,11 @@ void orion_sm_trace_pre(byte state, byte event){
   if (g_debug_on_off == OFF) return;
   
   print_date_time();
-  softSerial.print(F(">> orion PRE sm trace: "));
-  softSerial.print(F("curr_state: "));
-  softSerial.print(state);
-  softSerial.print(F(" curr_event: "));
-  softSerial.println(event);
+  debugSerial.print(F(">> orion PRE sm trace: "));
+  debugSerial.print(F("curr_state: "));
+  debugSerial.print(state);
+  debugSerial.print(F(" curr_event: "));
+  debugSerial.println(event);
   print_monitor_prompt();  
 }
 
@@ -103,13 +110,13 @@ void orion_sm_trace_post(byte state, byte processed_event,  byte resulting_actio
   if (g_debug_on_off == OFF) return;
   
   print_date_time();
-  softSerial.print(F("<< orion POST sm trace: "));
-  softSerial.print(F("curr_state: "));
-  softSerial.print(state);
-  softSerial.print(F(" event_just_processed: "));
-  softSerial.print(processed_event);
-  softSerial.print(F(" action: "));
-  softSerial.println(resulting_action);
+  debugSerial.print(F("<< orion POST sm trace: "));
+  debugSerial.print(F("curr_state: "));
+  debugSerial.print(state);
+  debugSerial.print(F(" event_just_processed: "));
+  debugSerial.print(processed_event);
+  debugSerial.print(F(" action: "));
+  debugSerial.println(resulting_action);
   print_monitor_prompt();
     
 }
@@ -118,10 +125,10 @@ void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq
   if (g_txlog_on_off == OFF) return; 
   
   print_date_time();
-  softSerial.print(F("WSPR TX Complete - GRIDSQ: "));
-  softSerial.print(grid);
-  softSerial.print(F(" Freq Hz: "));
-  softSerial.println(freq_hz);
+  debugSerial.print(F("WSPR TX Complete - GRIDSQ: "));
+  debugSerial.print(grid);
+  debugSerial.print(F(" Freq Hz: "));
+  debugSerial.println(freq_hz);
   print_monitor_prompt();
   
 }
@@ -133,8 +140,8 @@ void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq
 void serial_monitor_begin(){
   
   // Start software serial port 
-  softSerial.begin(MONITOR_SERIAL_BAUD);
-  softSerial.println(F("Initialising Orion Serial Monitor...."));
+  debugSerial.begin(MONITOR_SERIAL_BAUD);
+  debugSerial.println(F("Initialising Orion Serial Monitor...."));
   println_cmd_list();
   print_monitor_prompt();
   delay(500);
@@ -142,33 +149,34 @@ void serial_monitor_begin(){
 
 static void flush_input(void){
 
-  while (softSerial.available() > 0)
-    softSerial.read();
+  while (debugSerial.available() > 0)
+    debugSerial.read();
 }
 
 void serial_monitor_interface(){
  
-  if (softSerial.available() > 0){
-    char c = softSerial.read();
+  if (debugSerial.available() > 0){
+    char c = debugSerial.read();
     
-    softSerial.println(c); // echo the typed character
+    debugSerial.println(c); // echo the typed character
     
     switch (c) {
       case 'v' :
         flush_input();
-        softSerial.print(F("Orion firmware version: "));
-        softSerial.println(ORION_FW_VERSION);
+        debugSerial.print(F("Orion firmware version: "));
+        debugSerial.print(ORION_FW_VERSION);
+        debugSerial.println(BOARDNAME);
         break;
 
        case 'd' : // toggle debug flag
        flush_input();
-       softSerial.print(F("Orion debug tracing is : "));
+       debugSerial.print(F("Orion debug tracing is : "));
        g_debug_on_off = toggle_on_off(g_debug_on_off);
        break;
 
        case 'l' : // toggle TX log flag
        flush_input();
-       softSerial.print(F("Orion TX log is : "));
+       debugSerial.print(F("Orion TX log is : "));
        g_txlog_on_off = toggle_on_off(g_txlog_on_off);
        break;
 
@@ -179,13 +187,13 @@ void serial_monitor_interface(){
 
        case'q' :
        flush_input();
-       softSerial.print(F("Orion QRM avoidance is : "));
+       debugSerial.print(F("Orion QRM avoidance is : "));
        g_qrm_avoidance_on_off = toggle_on_off(g_qrm_avoidance_on_off);
        break;
                
       default:
         flush_input();
-        softSerial.println(F(" -- unrecognized command"));
+        debugSerial.println(F(" -- unrecognized command"));
         println_cmd_list();
        
         // Do nothing

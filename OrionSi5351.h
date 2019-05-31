@@ -21,24 +21,13 @@
 */
 #include <int.h>
 
-// Definitions for Software I2C. Remove the following if using the Wire.h library for hardware I2C
-// These are assuming Hardware Pin assignments compatible with the QRP Labs U3S & U3S-clones
-#define SCL_PIN 1  //PB1
-#define SCL_PORT PORTB
-#define SDA_PIN 2 //PD2
-#define SDA_PORT PORTD
-
 // Macros used by the KE7ER Si5351 Code 
 #define BB0(x) ((uint8_t)x)             // Bust int32 into Bytes
 #define BB1(x) ((uint8_t)(x>>8))
 #define BB2(x) ((uint8_t)(x>>16))
 
 #define SI5351BX_ADDR 0x60              // I2C address of Si5351   (typical)
-#define SI5351BX_XTALPF 3               // 1:6pf  2:8pf  3:10pf - assuming 10 pF, otherwise change
 
-// If using 27mhz crystal, set XTAL=27000000, MSA=33.  Then vco=891mhz
-#define SI5351BX_XTAL 2500000000ULL      // Crystal freq in centi Hz 
-#define SI5351BX_MSA  35                // VCOA is at 25mhz*35 = 875mhz
 #define RFRAC_DENOM 1000000ULL
 #define SI5351_CLK_ON true
 #define SI5351_CLK_OFF false

@@ -43,7 +43,8 @@
 // Time (Library Manager)   https://github.com/PaulStoffregen/Time - This provides a Unix-like System Time capability
 // SoftWire (https://github.com/stevemarple/SoftWire) - (assumes that you are using Software I2C otherwise substitute Wire.h)
 // TinyGPS (Library Manager) http://arduiniana.org/libraries/TinyGPS/ - **** remove this ****
-// NeoGps (https://github.com/SlashDevin/NeoGPS) - NMEA and uBlox GPS parser.
+// NeoGps (https://github.com/SlashDevin/NeoGPS) - NMEA and uBlox GPS parser using Nominal Configuration : date, time, lat/lon, altitude, speed, heading, 
+//  number of satellites, HDOP, GPRMC and GPGGA messages.
 // LightChrono (https://github.com/SofaPirate/Chrono) - Simple Chronometer Library
 //
 // License
@@ -70,24 +71,29 @@
 
 #include <JTEncode.h>
 #include <int.h>
-//#include <TinyGPS.h>
 #include <NMEAGPS.h>  // NeoGps
 #include <TimeLib.h>
-//#include <Wire.h>     // Only uncomment this if you are using Hardware I2C to talk to the Si5351a
 #include <LightChrono.h>
 #include "OrionXConfig.h"
+#include "OrionBoardConfig.h"
 #include "OrionSi5351.h"
 #include "OrionStateMachine.h"
 #include "OrionSerialMonitor.h"
 
-
-
 // NOTE THAT ALL #DEFINES THAT ARE INTENDED TO BE USER CONFIGURABLE ARE LOCATED IN OrionXConfig.h.
 // DON'T TOUCH ANYTHING DEFINED IN THIS FILE WITHOUT SOME VERY CAREFUL CONSIDERATION.
 
-// Port Defintions for NeoGps
-#define gpsPort Serial
-#define GPS_PORT_NAME "Serial"
+// Port Definitions for NeoGps 
+// We support hardware-based Serial, or software serial communications with the GPS using NeoSWSerial using conditional compilation
+// based on the #define GPS_USES_HW_SERIAL. For software serial comment out this #define in OrionBoardConfig.h
+#if defined (GPS_USES_HW_SERIAL)
+    #define gpsPort Serial
+    #define GPS_PORT_NAME "Serial"
+ #else
+    #include <NeoSWSerial.h>
+    #define GPS_PORT_NAME "NeoSWSerial"
+ #endif
+
 
 // WSPR specific defines. DO NOT CHANGE THESE VALUES, EVER!
 #define TONE_SPACING            146                 // ~1.46 Hz
@@ -102,6 +108,12 @@ static gps_fix fix;
 
 //Time related
 LightChrono g_chrono; 
+
+// If we are using software serial to talk to the GPS then we need to create an instance of NeoSWSerial and 
+// provide the RX and TX Pin numbers.
+#if !defined (GPS_USES_HW_SERIAL)   
+  NeoSWSerial gpsPort(SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN);  // RX, TX
+#endif
 
 // We initialize this to 61 so the first time through the scheduler we can't possibly match the current second
 // This forces the scheduler to run on its very first call. 
@@ -235,9 +247,11 @@ void encode_and_tx_wspr_msg1() {
   // Turn off the PARK clock
   si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
 
-  if (TX_LED_PIN != 0) { // If we are using the TX LED turn it on
+  // If we are using the TX LED turn it on
+  #if defined(TX_LED_PRESENT) 
     digitalWrite(TX_LED_PIN, HIGH);
-  }
+  #endif
+  
   // Now send the rest of the message
   for (i = 0; i < SYMBOL_COUNT; i++)
   {
@@ -255,9 +269,10 @@ void encode_and_tx_wspr_msg1() {
   // Re-enable the Park Clock
   si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_ON);
 
-  if (TX_LED_PIN != 0) { // If we are using the TX LED turn it off
+// If we are using the TX LED turn it off
+ #if defined (TX_LED_PRESENT) 
     digitalWrite(TX_LED_PIN, LOW);
-  }
+ #endif
 
   delay(1000); // Delay one second
 } // end of encode_and_tx_wspr_msg1()
@@ -276,22 +291,27 @@ void get_gps_fix_and_time() {
       if ( timeStatus() == timeNotSet ) { // System date/time isn't set so set it
         setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
         g_chrono.start();
-        
-        if ((SYNC_LED_PIN != 0) && (timeStatus() == timeSet))  // If we are using the SYNC_LED
-          digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
-        else if (SYNC_LED_PIN != 0)
-          digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off 
+
+        // If we are using the SYNC_LED
+        #if defined (SYNC_LED_PRESENT)
+          if (timeStatus() == timeSet) 
+            digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
+          else 
+            digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off 
+        #endif
       }
 
 
       if (g_chrono.hasPassed(TIME_SET_INTERVAL_MS, true)) { // When the time set interval has passed, restart the Chronometer set system time again from GPS
         setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
         
-        if ((SYNC_LED_PIN != 0) && (timeStatus() == timeSet))  // If we are using the SYNC_LED
-          digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
-        else if (SYNC_LED_PIN != 0)
-          digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off
-          
+          // If we are using the SYNC_LED
+        #if defined (SYNC_LED_PRESENT)
+          if (timeStatus() == timeSet) 
+            digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
+          else 
+            digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off 
+        #endif
       }
 
   
@@ -410,17 +430,17 @@ OrionAction orion_scheduler() {
 
 void setup(){
 
-  // Use the TX_LED_PIN as a transmit indicator, but only if it is non-zero
-  if (TX_LED_PIN != 0) {
+  // Use the TX_LED_PIN as a transmit indicator if it is present
+ #if defined (TX_LED_PRESENT)
     pinMode(TX_LED_PIN, OUTPUT);
     digitalWrite(TX_LED_PIN, LOW);
-  }
+ #endif
 
-  // Use the SYNC_LED_PIN to indicate the beacon has valid time from the GPS, but only if it is non-zero
-  if (SYNC_LED_PIN != 0) {
+  // Use the SYNC_LED_PIN to indicate the beacon has valid time from the GPS, but only if it present
+ #if defined (SYNC_LED_PRESENT) 
     pinMode(SYNC_LED_PIN, OUTPUT);
     digitalWrite(SYNC_LED_PIN, LOW);
-  }
+ #endif
 
   // Start Hardware serial communications with the GPS
   gpsPort.begin(GPS_SERIAL_BAUD);
@@ -465,8 +485,8 @@ void setup(){
   // Tell the state machine that we are done SETUP
   g_current_action = orion_state_machine(SETUP_DONE_EV);
 
-  // Use pin A0 (not connected) to generate a random seed for QRM avoidance feature
-  randomSeed(analogRead(0));
+  // Read unused analog pin (not connected) to generate a random seed for QRM avoidance feature
+  randomSeed(analogRead(ANALOG_PIN_FOR_RNG_SEED));
 
 } // end setup()
 

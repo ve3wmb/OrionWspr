@@ -22,7 +22,10 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 
-
+#define ORION_FW_VERSION "v0.12a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+                                  // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
+                                  // a = alpha b=beta, r=release
+                                  
 /***********************************************************
    USER SPECIFIED PARAMETERS FOR WSPR
  ***********************************************************/
@@ -35,59 +38,8 @@
 #define BEACON_GRID_SQ_4CHAR    "AA01"        // Your hardcoded 4 character Grid Square - this is temporary until we add Grid square derived from GPS Coordinates
 #define BEACON_TX_PWR_DBM          7          // Beacon Power Output in dBm (5mW = 7dBm)
 
-
-/***********************************************************
-   Hardware Pin Assignments
- ***********************************************************/
-// Arduino Hardware Pin Configurations - change these to match your specific hardware
-//#define TX_LED_PIN              4             // TX LED on D4. Make this 0 if you don't have a pin allocated for TX_LED
-//#define SYNC_LED_PIN            7             // LED on PIN D7 indicates GPS time synchronization. Make this 0 if you don't have a pin allocated for TX_LED
-// Note the most Arduino Boards have a built-in LED that can be used for either of the above purposes referred to as LED_BUILTIN
-#define TX_LED_PIN 0
-#define SYNC_LED_PIN 0
-
-/***********************************************************
-   Si5351a Configuration Parameters
- ***********************************************************/
-#define SI5351A_PARK_CLK_NUM    1              // The Si5351a Clock Number output used to mimic the QRP Labs U3S Park feature. This needs to be an unused clk port.
-                                               // I recommend terminating this port to ground via a 47 to 56 ohm resistor.
-#define SI5351A_CAL_CLK_NUM     2              // Calibration Clock Number                                
-#define SI5351A_WSPRTX_CLK_NUM  0              // The Si5351a Clock Number output used for the WSPR Beacon Transmission
-
-/*********************************************************************************************************************** 
-*  You need to calibrate your Si5351a and substitute the your correction value for SI5351A_CLK_FREQ_CORRECTION below.
-*  See OrionSi5351_calibration.ino sketch. You may also need to modify SI5351BX_XTALPF
-*  in OrionSi5351.h is you need a crystal load capacitance other that 8 pf.
-************************************************************************************************************************/
-//#define SI5351A_CLK_FREQ_CORRECTION  4300     // Correction Value for VE3WMB Adafruit Si5351 Breakout board (Mickey Prototype)
-//#define SI5351A_CLK_FREQ_CORRECTION  -13292    // Correction Value for VE3WMB Adafruit Si5351 Breakout board (Donald Prototype)
-#define SI5351A_CLK_FREQ_CORRECTION  -6813      // Correction value for Stella9.1 board
-                                               
-
-/**************************************************************************************
-   GPS CONFIGURATION Parameters - IT ASSUMES THE USE OF A HARWARE SERIAL PORT
- **************************************************************************************/
-// GPS Serial port Baud rate - For now only a hardware serial connection to the GPS is supported.
-#define GPS_SERIAL_BAUD         9600          // Baudrate for the GPS Serial port
-
-#define MONITOR_SERIAL_BAUD     9600          // Baudrate for Orion Serial Monitor 
-
 // This defines how often we reset the Arduino Clock to the current GPS time 
 #define TIME_SET_INTERVAL_MS   600000         // 60,000 ms / minute x 10 = 10 minutes         
-
-
-/***********************************************************
-   Parameters dependant on Processor CPU Speed
- ***********************************************************/
-// The following value WSPR_CTC is used for Timer1 that generates a 1.46 Hz interrupt.
-
-// THE CURRENT VALUE for WSPR_CTC ASSUMES AN 8 MHZ PROCESSOR CLOCK !
-
-// If you are using most Arduinos (i.e Nano, UNO etc) they use a 16 Mhz clock and the value 10672 must be substituted.
-// ie. #define WSPR_CTC                10672       // CTC value for WSPR on Arduino using 16 Mhz clock (i.e. Nano, Uno etc)
-// The formula to calculate WSPR_CTC is: 1.4648 = CPU_CLOCK_SPEED_HZ / (PRESCALE_VALUE) x (WSPR_CTC + 1)
-#define WSPR_CTC                5336               // CTC value for WSPR on Arduino using an 8 Mhz clock (i.e. Arduino Pro Mini 3.3v 8 Mhz)
-
 
 // Type Definitions
 enum OrionWsprMsgType {PRIMARY_WSPR_MSG, SECONDARY_WSPR_MSG};
