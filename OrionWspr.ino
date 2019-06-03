@@ -430,6 +430,18 @@ OrionAction orion_scheduler() {
 
 void setup(){
 
+// Ensure that GPS is powered up if power disable feature supported
+#if defined(GPS_POWER_DISABLE_SUPPORTED)
+  pinMode(GPS_POWER_DISABLE_PIN, OUTPUT);
+  digitalWrite(GPS_POWER_DISABLE_PIN, LOW);
+#endif
+
+// Ensure that Si5351a is powered up if power disable feature supported
+#if defined(SI5351_POWER_DISABLE_SUPPORTED)
+  pinMode(TX_POWER_DISABLE_PIN, OUTPUT);
+  digitalWrite(TX_POWER_DISABLE_PIN, LOW);
+#endif
+
   // Use the TX_LED_PIN as a transmit indicator if it is present
  #if defined (TX_LED_PRESENT)
     pinMode(TX_LED_PIN, OUTPUT);

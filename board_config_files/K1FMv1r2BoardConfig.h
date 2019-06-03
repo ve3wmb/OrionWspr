@@ -1,8 +1,9 @@
 #ifndef ORIONBOARDCONFIG_H
 #define ORIONBOARDCONFIG_H
 
- //  K1FMv1dot1BoardConfig.h - Orion Board Configuration for K1FM PicoBv1.1 board
+ //  K1FMv1r2BoardConfig.h - Orion Board Configuration for K1FM PicoBv1.2 board
  //  SW serial to GPS, HW serial for debug monitor, Hardware I2C
+ //  GPS_POWER_DISABLE and Si5351_POWER_DISABLE supported.
 
 /*
    Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
@@ -24,7 +25,7 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE A SPECIFIC BOARD TO USE THE ORION WSPR BEACON CODE
 
-#define BOARDNAME " - K1FM v1.1"        // This string is output along with code version using the 'v' command in the monitor
+#define BOARDNAME " - K1FM v1.2"        // This string is output along with code version using the 'v' command in the monitor
 
 // GPS Communicates with processor via Hardware serial 
 //#define GPS_USES_HW_SERIAL              // Comment out if ATMEGA328p communicates with GPS via Software Serial
@@ -35,13 +36,13 @@
 // Processor talks to Si5351a using software I2C
 //#define SI5351A_USES_SOFTWARE_I2C       // Comment out if  ATMEGA328p communicates with the Si5351a via Hardware I2C
 
-// PIN definitions for Si5351a software I2C communication. 
-// Ignore if using Hardware I2C with Wire Library to communicate with the Si5351a
-// These are assuming Hardware Pin assignments compatible with the QRP Labs U3S & U3S-clones
-#define SCL_PIN 1  //PB1
-#define SCL_PORT PORTB
-#define SDA_PIN 2 //PD2
-#define SDA_PORT PORTD
+// K1FM 1.2 boards and greater support the ability to enable/disable VCC power to GPS  
+#define GPS_POWER_DISABLE_SUPPORTED
+
+// K1FM 1.2 boards and greater support the ability to enable/disable VCC power to Si5351a
+#define	SI5351_POWER_DISABLE_SUPPORTED
+
+
 
 // Comment these out if not using an LED to indicate TX or GPS Time Synch
 //#define TX_LED_PRESENT           
@@ -57,6 +58,13 @@ Arduino Hardware Pin Configurations - change these to match your specific hardwa
 #define SOFT_SERIAL_RX_PIN        4            
 #define SOFT_SERIAL_TX_PIN        3            
 
+// PIN definitions for Si5351a software I2C communication. 
+// Ignore if using Hardware I2C with Wire Library to communicate with the Si5351a
+// These are assuming Hardware Pin assignments compatible with the QRP Labs U3S & U3S-clones
+#define SCL_PIN 1  //PB1
+#define SCL_PORT PORTB
+#define SDA_PIN 2 //PD2
+#define SDA_PORT PORTD
 
 // The following defines designate which pins are used for TX and Time Synch if 
 // TX_LED_PRESENT and SYNC_LED_PRESENT are defined. They are ignored otherwise.
@@ -65,6 +73,17 @@ Arduino Hardware Pin Configurations - change these to match your specific hardwa
 // Note the most Arduino Boards have a built-in LED that can be used for either of the above purposes referred to as LED_BUILTIN
 
 #define ANALOG_PIN_FOR_RNG_SEED  A0              // Pin used to generate seed for Random number generator - must be a free analog pin (unused) 
+
+// Enable PIN for GPS VCC (LOW = enabled, HIGH = disabled)
+#ifdef GPS_POWER_DISABLE_SUPPORTED
+	#define GPS_POWER_DISABLE_PIN	5			// Pin D5
+#endif
+
+// Enable PIN for Si5351a TX VCC (LOW = enabled, HIGH = disabled)
+#ifdef SI5351_POWER_DISABLE_SUPPORTED
+	#define TX_POWER_DISABLE_PIN		6			// Pin D6
+#endif
+
 
 /***********************************************************
    Si5351a Configuration Parameters

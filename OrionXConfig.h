@@ -22,7 +22,7 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 
-#define ORION_FW_VERSION "v0.12a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+#define ORION_FW_VERSION "v0.13a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
                                   // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
                                   // a = alpha b=beta, r=release
                                   
