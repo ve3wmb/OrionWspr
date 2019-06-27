@@ -99,6 +99,11 @@ void si5351bx_init() {                  // Call once at power-up, start PLLA
   i2cWrite(177, 0x20);                  // Reset PLLA  (0x80 resets PLLB)
 }
 
+// Set the frequency correction factor - needed for self-calibration
+void si5351bx_set_correction(int32_t corr) {
+  si5351_correction = corr; 
+}
+
 // Set the frequency for the specified clock number
 // Note that fout is in hertz x 100 (i.e. hundredths of hertz). 
 // Frequency range must be between 500 Khz and 109 Mhz

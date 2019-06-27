@@ -1,8 +1,9 @@
 #ifndef ORIONBOARDCONFIG_H
 #define ORIONBOARDCONFIG_H
 
- //  Stella91BoardConfig.h - Orion Board Configuration for DL6OW STELLA9.1 Board - U3S Clone
- //  HW serial to GPS, SW serial for debug monitor, software I2C
+ //  Stella91BoardConfig.h - Orion Board Configuration for DL6OW STELLA 9.1 - U3S Clone
+ //  HW serial to GPS, SW serial for debug monitor, software I2C, supports self-calibration
+ //  with PinChangeInterrupts on A5/ADC5.
 
 /*
    Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
@@ -24,8 +25,13 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE A SPECIFIC BOARD TO USE THE ORION WSPR BEACON CODE
 
-#define BOARDNAME " - STELLA9.1"        // This string is output along with code version using the 'v' command in the monitor
+#define BOARDNAME " - STELLA 9.1"        // This string is output along with code version using the 'v' command in the monitor
 
+
+/*************************************************************************
+/* The following #defines select CODE OPTIONALITY via conditional compile*
+*************************************************************************/
+ 
 // GPS Communicates with processor via Hardware serial 
 #define GPS_USES_HW_SERIAL              // Comment out if ATMEGA328p communicates with GPS via Software Serial
 
@@ -35,6 +41,22 @@
 // Processor talks to Si5351a using software I2C
 #define SI5351A_USES_SOFTWARE_I2C       // Comment out if  ATMEGA328p communicates with the Si5351a via Hardware I2C
 
+#define SI5351_SELF_CALIBRATION_SUPPORTED  true // set to false if No Self calibration. It requires an unused Si5351 CLK output fed back to D5 
+
+// Self Calibration uses External Interrup on PIN D2 or D3 for GPS PPS signal.
+// Comment this out if using PinChangeInterrupt on any other PIN 
+// This must be defined if the GPS PPS PIN is connected to D2 or D3, otherwise commented out
+//#define GPS_PPS_ON_D2_OR_D3        //GPS PPS connects to D2 or D3 and thus can use an External Interrupt othwerwise 
+
+// Comment these out if not using an LED to indicate WSPR TX or GPS Time Synch
+//#define TX_LED_PRESENT           
+//#define SYNC_LED_PRESENT 
+/*****************************************************************************/
+
+/*****************************************************************************************
+* Atmega328p processor Pin Configurations - change these to match your specific hardware *
+*****************************************************************************************/
+
 // PIN definitions for Si5351a software I2C communication. 
 // Ignore if using Hardware I2C with Wire Library to communicate with the Si5351a
 // These are assuming Hardware Pin assignments compatible with the QRP Labs U3S & U3S-clones
@@ -43,17 +65,11 @@
 #define SDA_PIN 2 //PD2
 #define SDA_PORT PORTD
 
-// Comment these out if not using an LED to indicate TX or GPS Time Synch
-//#define TX_LED_PRESENT           
-//#define SYNC_LED_PRESENT       
-
-/**********************************************************************************
-Arduino Hardware Pin Configurations - change these to match your specific hardware
-***********************************************************************************/
-
 // The following two defines select the Arduino pins used for software Serial communications.
 // The assumption is that if SW serial is used for communicating with the GPS, that hardware
 // serial is used for the debug monitor, or vise versa. One of the two must use hardware serial.
+// Note that the choice of PINS will impact the setup of the PinChange Interrupts for NeoSWSerial
+// See OrionSerialMonitor.cpp
 #define SOFT_SERIAL_RX_PIN        12            // MISO of six pin ICSP header on DL6OW boards
 #define SOFT_SERIAL_TX_PIN        11            // MOSI of six pin ICSP header on DL6OW board
 
@@ -66,6 +82,12 @@ Arduino Hardware Pin Configurations - change these to match your specific hardwa
 
 #define ANALOG_PIN_FOR_RNG_SEED  A0              // Pin used to generate seed for Random number generator - must be a free analog pin (unused) 
 
+#define CAL_FREQ_IN_PIN 5        // This must be D5 as it is the external clock iput for Timer1 when it is used as a counter. 
+                                 // Otherwise Calibration is not supported for your board.
+                                  
+//#define GPS_PPS_PIN 3            // This must be either 2 or 3 (i.e. D2 or D3) to use external interrupts, otherwise you must use a PinChangeInterrupt for PPS 
+#define GPS_PPS_PIN A5         // DL6OW STELLA boards and other U3S Clones use A5/ADC5 (physical pin #28) for PPS. This uses PCINT13       
+
 /***********************************************************
    Si5351a Configuration Parameters
  ***********************************************************/
@@ -74,14 +96,12 @@ Arduino Hardware Pin Configurations - change these to match your specific hardwa
 #define SI5351A_CAL_CLK_NUM     2              // Calibration Clock Number                                
 #define SI5351A_WSPRTX_CLK_NUM  0              // The Si5351a Clock Number output used for the WSPR Beacon Transmission
 
-
-
 /*********************************************************************************************************************** 
 *  You need to calibrate your Si5351a and substitute the your correction value for SI5351A_CLK_FREQ_CORRECTION below.
 *  See OrionSi5351_calibration.ino sketch. You may also need to modify SI5351BX_XTALPF
 *  in OrionSi5351.h is you need a crystal load capacitance other that 8 pf.
 ************************************************************************************************************************/
-#define SI5351A_CLK_FREQ_CORRECTION  -6813      // Correction value for Si5351a on Stella9.1 board
+#define SI5351A_CLK_FREQ_CORRECTION   -6813  // Correction value for Si5351a on DL6OW Stella 9.1 prototype
 
 #define SI5351BX_XTALPF   3               // 1:6pf  2:8pf  3:10pf -  assuming 10 pF, otherwise change
 
@@ -105,5 +125,7 @@ Arduino Hardware Pin Configurations - change these to match your specific hardwa
 // ie. #define WSPR_CTC                10672       // CTC value for WSPR on Arduino using 16 Mhz clock (i.e. Nano, Uno etc)
 // The formula to calculate WSPR_CTC is: 1.4648 = CPU_CLOCK_SPEED_HZ / (PRESCALE_VALUE) x (WSPR_CTC + 1)
 #define WSPR_CTC                5336               // CTC value for WSPR on Arduino using an 8 Mhz clock (i.e. Arduino Pro Mini 3.3v 8 Mhz)
+
+#define SI5351_CAL_TARGET_FREQ  320000000ULL; //This is calculated as CPU_CLOCK_SPEED_HZ / 2.5 expressed in hundredths of Hz. Assumes 8 Mhz clk.
 
 #endif

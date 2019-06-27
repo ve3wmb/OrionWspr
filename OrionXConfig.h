@@ -22,20 +22,22 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 
-#define ORION_FW_VERSION "v0.13a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+#define ORION_FW_VERSION "v0.14a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
                                   // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
                                   // a = alpha b=beta, r=release
                                   
 /***********************************************************
    USER SPECIFIED PARAMETERS FOR WSPR
  ***********************************************************/
-// Beacon frequency  - hardcoded on a single frequency for now
-//#define BEACON_FREQ_HZ          10140110UL     // Base Beacon Frequency In Hz.
-#define BEACON_FREQ_HZ          14097010UL
+//#define BEACON_FREQ_HZ          10140110UL     // Base Beacon Frequency In Hz for 30m. 
+
+#define BEACON_FREQ_HZ            14097010UL    //  Base Frequency In Hz for use when QRM Avoidance is enabled. Actual Tx frequency is BEACON_FREQ_HZ + a random offset.
+#define FIXED_BEACON_FREQ_HZ      14097070UL    //  Beacon Frequency In Hz for use when QRM Avoidance is disabled.
+#define PARK_FREQ_HZ              108000000ULL  // Use this on clk SI5351A_PARK_CLK_NUM to keep the SI5351a warm to avoid thermal drift during WSPR transmissions. Max 109 Mhz.
 
 // Configuration parameters for Primary WSPR Message (i.e. Callsign, 4 character grid square and power out in dBm)
 #define BEACON_CALLSIGN_6CHAR   "VE3WMB"      // Your beacon Callsign, maximum of 6 characters
-#define BEACON_GRID_SQ_4CHAR    "AA01"        // Your hardcoded 4 character Grid Square - this is temporary until we add Grid square derived from GPS Coordinates
+#define BEACON_GRID_SQ_4CHAR    "AA01"        // Your hardcoded 4 character Grid Square - this will be overwritten with GPS derived Grid
 #define BEACON_TX_PWR_DBM          7          // Beacon Power Output in dBm (5mW = 7dBm)
 
 // This defines how often we reset the Arduino Clock to the current GPS time 

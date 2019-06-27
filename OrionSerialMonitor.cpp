@@ -25,9 +25,47 @@
   #include <NeoSWSerial.h>
 #endif
 
-static bool g_debug_on_off = OFF;
+// This is needed if an application used both PinChangeInterrupts and NeoSWSerial which we do.
+// Note that you must modify this to define an ISR for the correct PCINTx_vect 
+// according to what pins you are using for SOFT_SERIAL_RX_PIN and SOFT_SERIAL_TX_PIN
+//
+// Port B (digital pin 8 to 13)
+// Port C (all analog input pins)
+// Port D (digital pins 0 to 7) 
+//
+// ISR (PCINT0_vect) handles pin change interrupt for D8 to D13, (Port B, PCINT0 - PCINT7)
+// ISR (PCINT1_vect) handles pin change interrupt for A0 to A5, (Port C, PCINT8 - PCINT14)
+// ISR (PCINT2_vect) handles pin change interrupt for D0 to D7, (Port D, PCINT16 - PCINT23)
+
+// ISR(PCINT0_vect){}    // Port B, PCINT0 - PCINT7
+// ISR(PCINT1_vect){}    // Port C, PCINT8 - PCINT14
+// ISR(PCINT2_vect){}    // Port D, PCINT16 - PCINT23
+//  PCINT0_vect must call NeoSWSerial::rxISR(PINB);
+//  PCINT1_vect must call NeoSWSerial::rxISR(PINC);
+//  PCINT2_vect must call NeoSWSerial::rxISR(PIND);
+// Also note that you must uncomment the third last line in NeoSWSerial.h
+// which is #define NEOSWSERIAL_EXTERNAL_PCINT, othewise you will have linking errors
+
+#if defined (NEOSWSERIAL_EXTERNAL_PCINT)
+  ISR (PCINT0_vect)
+  {
+    // handle pin change interrupt for D8 to D13 here. 
+    // Note SOFT_SERIAL_TX_PIN (MOSI) = 11 and SOFT_SERIAL_RX_PIN =  = 12  (MISO - PB4/PCINT4)for U3S Clones
+    // 
+    NeoSWSerial::rxISR(PINB);
+  }  // end of PCINT0_vect
+
+  ISR (PCINT2_vect)
+  {
+    NeoSWSerial::rxISR(PIND);
+  }  // end of PCINT2_vect
+#endif
+
+static bool g_debug_on_off = OFF; 
 static bool g_txlog_on_off = OFF;
+static bool g_info_log_on_off = ON;
 static bool g_qrm_avoidance_on_off = ON;
+static bool g_selfcalibration_on_off = ON;
  
 #if defined (DEBUG_USES_SW_SERIAL)  
   NeoSWSerial debugSerial(SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN);  // RX, TX
@@ -35,13 +73,19 @@ static bool g_qrm_avoidance_on_off = ON;
   #define debugSerial Serial
 #endif
 
+bool is_selfcalibration_on(){
+  if (g_selfcalibration_on_off == OFF)
+    return false;
+  else
+    return true;
+}
+
 bool is_qrm_avoidance_on(){
   if (g_qrm_avoidance_on_off == OFF)
     return false;
   else
     return true;
 }
-
 void print_monitor_prompt(){
   debugSerial.print(F("> "));
 }
@@ -87,8 +131,8 @@ void swerr(byte swerr_num, int data){
     
 }
 void println_cmd_list(){
-  debugSerial.println(F("cmds: v = f/w version, d = toggle debug trace on/off, l = toggle TX log on/off, q = toggle qrm avoidance on/off, ? = cmd list"));
-}
+  debugSerial.println(F("cmds: v = f/w version, d = toggle debug trace on/off, l = toggle TX log on/off, i= toggle info on/off, q = toggle qrm avoidance on/off, ? = cmd list"));
+} 
 
 
 
@@ -122,7 +166,9 @@ void orion_sm_trace_post(byte state, byte processed_event,  byte resulting_actio
 }
 
 void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq_hz){
-  if (g_txlog_on_off == OFF) return; 
+
+  // If either txlog is turned on or info logs are turned on then log the TX
+  if ((g_txlog_on_off == OFF) && (g_info_log_on_off == OFF)) return; 
   
   print_date_time();
   debugSerial.print(F("WSPR TX Complete - GRIDSQ: "));
@@ -133,6 +179,36 @@ void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq
   
 }
 
+void log_debug_Timer1_info(byte it,int ofCount, int t_count){
+  
+  if (g_debug_on_off == OFF) return; // Do nothing if debug disabled.
+  
+  debugSerial.print(F(" iteration: "));
+  debugSerial.print(it);
+  debugSerial.print(F(" overflowCounter: "));
+  debugSerial.print(ofCount);
+  debugSerial.print(F(" TCNT1: "));
+  debugSerial.println(t_count);
+  print_monitor_prompt();
+}
+void log_calibration(uint64_t sampled_freq, int32_t o_cal_factor, int32_t n_cal_factor)
+{ 
+  if (g_info_log_on_off == OFF) return;
+  
+  uint32_t low = sampled_freq % 0xFFFFFFFF; 
+  uint32_t high = (sampled_freq >> 32) % 0xFFFFFFFF;
+
+  print_date_time();
+  debugSerial.print(F(" Sampled Freq Hz x 100 : "));
+  debugSerial.print(high);
+  debugSerial.print(low);
+  debugSerial.print(F(" Old Corr factor : "));
+  debugSerial.print(o_cal_factor);
+  debugSerial.print(F(" New Corr factor : "));
+  debugSerial.println(n_cal_factor);
+  print_monitor_prompt();
+  
+}
 /**********************
 /* Serial Monitor code 
 /**********************/
@@ -161,6 +237,7 @@ void serial_monitor_interface(){
     debugSerial.println(c); // echo the typed character
     
     switch (c) {
+      
       case 'v' :
         flush_input();
         debugSerial.print(F("Orion firmware version: "));
@@ -172,6 +249,12 @@ void serial_monitor_interface(){
        flush_input();
        debugSerial.print(F("Orion debug tracing is : "));
        g_debug_on_off = toggle_on_off(g_debug_on_off);
+       break;
+
+       case 'c' : // toggle calibration flag
+       flush_input();
+       debugSerial.print(F("Orion self calibration is : "));
+       g_selfcalibration_on_off = toggle_on_off(g_selfcalibration_on_off);
        break;
 
        case 'l' : // toggle TX log flag
@@ -189,6 +272,12 @@ void serial_monitor_interface(){
        flush_input();
        debugSerial.print(F("Orion QRM avoidance is : "));
        g_qrm_avoidance_on_off = toggle_on_off(g_qrm_avoidance_on_off);
+       break;
+
+       case'i' :
+       flush_input();
+       debugSerial.print(F("Orion info logs are : "));
+       g_info_log_on_off = toggle_on_off(g_info_log_on_off);
        break;
                
       default:

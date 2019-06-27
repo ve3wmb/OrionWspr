@@ -1,7 +1,7 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.12a
+Consider this to be Alpha Software. Current version is: v0.14a
 
 Current Limitations :
 - currently only encodes and sends primary WSPR Message, not secondary message containing Telemetry info.
@@ -9,11 +9,12 @@ Current Limitations :
 
 Current compile stats are:
 
-Sketch uses 18142 bytes or 59% (previously 58%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 960 bytes or 46% (previously 46%) of dynamic memory, leaving 1088 bytes for local variables. 
+Sketch uses 20574 bytes or 66% (previously 59%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 994 bytes or 48% (previously 46%) of dynamic memory, leaving 1054 bytes for local variables. 
 Maximum is 2048 bytes.
 
-For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the CORRECTION value.
+For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
+and hard-code that in the BoardConfig.h file. 
 
 Notes on Software Versioning:
 
@@ -25,6 +26,17 @@ a=alpha b=beta, r=release
 
 
 Changelog : 
+
+v0.14a - Orion Self calibration with Si5351a frequency correction using  a Huff-n-Puff Algorithm. Supports both External Interrupts
+and PinChangeInterrupts for GPS PPS signal and requires unused clock output from Si5351a to be wired to ATMEGA328p PIN D5, which
+is the external clock input for Timer1. Timer1 is used as a counter to sample a 3.2 Mhz calibration signal from the Si5351a.
+The GPS PPS signal is used as a time-base to implement a simple frequency counter. A ten second sample is used to measure the
+frequency, accurate to 1/10 Hz and then a correction factor is applied to the Si5351a and the output frequency regenerated. This 
+is repeated 24 times, yielding a self-calibration cycle of approximately 4 minutes, prior to each transmission. The initial cycle
+after powerup uses a 1 Hz correction factor and subsequent calibrations use 0.1Hz steps to achieve approximately 1 Hz accuracy
+for the beacon at 14 Mhz. 
+
+v0.13a - support K1FM v1.2 board and GPS and Si5351 power disable feature.
 
 v0.12a - Introduced board configuration. Individual .h files are stored in board_configuration folder and are coped and renamed  
 OrionBoardConfig.h to provide #defines necessary to configure PINs and functionality include HW vs SW Serial (to GPS and debug 

@@ -35,6 +35,14 @@
 // Processor talks to Si5351a using software I2C
 //#define SI5351A_USES_SOFTWARE_I2C       // Comment out if  ATMEGA328p communicates with the Si5351a via Hardware I2C
 
+#define SI5351_SELF_CALIBRATION_SUPPORTED  false // set to false if No Self calibration. It requires an unused Si5351 CLK output fed back to D5 
+
+// Self Calibration uses External Interrup on PIN D2 or D3 for GPS PPS signal.
+// Comment this out if using PinChangeInterrupt on any other PIN 
+// This must be defined if the GPS PPS PIN is connected to D2 or D3, otherwise commented out
+//#define GPS_PPS_ON_D2_OR_D3        //GPS PPS connects to D2 or D3 and thus can use an External Interrupt othwerwise 
+
+
 // PIN definitions for Si5351a software I2C communication. 
 // Ignore if using Hardware I2C with Wire Library to communicate with the Si5351a
 // These are assuming Hardware Pin assignments compatible with the QRP Labs U3S & U3S-clones
@@ -111,4 +119,5 @@ Arduino Hardware Pin Configurations - change these to match your specific hardwa
 // The formula to calculate WSPR_CTC is: 1.4648 = CPU_CLOCK_SPEED_HZ / (PRESCALE_VALUE) x (WSPR_CTC + 1)
 #define WSPR_CTC                5336               // CTC value for WSPR on Arduino using an 8 Mhz clock (i.e. Arduino Pro Mini 3.3v 8 Mhz)
 
+#define SI5351_CAL_TARGET_FREQ  320000000ULL; //This is calculated as CPU_CLOCK_SPEED_HZ / 2.5 expressed in hundredths of Hz. Assumes 8 Mhz clk.
 #endif

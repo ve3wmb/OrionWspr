@@ -1,7 +1,7 @@
-#ifndef ORIONSERIALMONITOR_H
-#define ORIONSERIALMONITOR_H
+#ifndef ORIONCALIBRATION_H
+#define ORIONCALIBRATION_H
 /*
-    OrionSerialMonitor.h - Definitions for Orion Debug Monitor
+    OrionCalibbration.h - Definitions for Orion SI5351 Self Calibration
 
    Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
 
@@ -18,17 +18,12 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <Arduino.h>
 #include "OrionXConfig.h"
 
-void swerr(byte swerr_num, int data);
-void serial_monitor_begin();
-void serial_monitor_interface();
-void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq_hz);
-void orion_sm_trace_pre(byte state, byte event);
-void orion_sm_trace_post(byte state, byte processed_event,  byte resulting_action);
-bool is_qrm_avoidance_on();
-bool is_selfcalibration_on();  
-void log_debug_Timer1_info(byte i, int ofCount, int t_count);
-void log_calibration(uint64_t sampled_freq, int32_t o_cal_factor, int32_t n_cal_factor );
+#define FINE_CORRECTION_STEP   10     // 0.1 HZ step
+#define COARSE_CORRECTION_STEP 100   // 1 Hz step
+
+void setup_calibration();
+void reset_for_calibration();
+void do_calibration(unsigned long calibration_step);
 #endif

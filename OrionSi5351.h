@@ -38,6 +38,10 @@ void si5351bx_enable_clk(uint8_t clk_num, bool on_off);
 // Initialize the Si5351
 void si5351bx_init();
 
+// Set the correction factor for the Si5351a clock.
+// This is used for self-calibration
+void si5351bx_set_correction(int32_t corr);
+
 // Set the frequency for the specified clock number
 // Note that fout is in hertz x 100 (i.e. hundredths of hertz). 
 // Frequency range must be between 500 Khz and 109 Mhz

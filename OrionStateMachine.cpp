@@ -19,6 +19,7 @@
 */
 #include "OrionSerialMonitor.h"
 #include "OrionStateMachine.h"
+#include "OrionBoardConfig.h"
 
 
 OrionState g_current_orion_state = POWERUP_ST;
@@ -38,7 +39,9 @@ void orion_sm_begin() {
   g_previous_orion_state = POWERUP_ST;
 }
 
-
+OrionState orion_sm_get_current_state(){
+  return g_current_orion_state;
+}
 void orion_sm_change_state( OrionState new_state) {
   g_previous_orion_state = g_current_orion_state;
   g_current_orion_state = new_state;
@@ -60,22 +63,40 @@ OrionAction orion_state_machine(OrionEvent event) {
     case  POWERUP_ST : { //executing setup()
 
         if (event == SETUP_DONE_EV) {
-          // Done setup now wait until it is time to get the Telemetry data and position
-          orion_sm_change_state(WAIT_TELEMETRY_ST);
-          next_action = NO_ACTION;
+
+          if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && (is_selfcalibration_on())) {
+            // Done setup now do intial calibration
+            orion_sm_change_state(CALIBRATE_ST);
+            next_action = STARTUP_CALIBRATION_ACTION;
+          }
+          else {
+            // If we don't support self Calibration then skip to telemetry
+            orion_sm_change_state(WAIT_TELEMETRY_ST);
+            
+            // Since we can't rely on the post-calibration cleanup to setup and 
+            // start the WS TX Interrupt we trigger it using an action. 
+            next_action = WSPR_TX_INT_SETUP_ACTION;
+          }
         }
         else
           swerr(1, event); // This event is not supported in this state
         break;
       }
 
-    /*
-      case  WAIT_CALIBRATE_ST : // waiting for next calibration cycle
-             orion_sm_no_op();
+    case  CALIBRATE_ST :  // calibrating Si5351a clock
+      if (event == CALIBRATION_DONE_EV ) {
+        // Done setup now do intial calibration
+        orion_sm_change_state(WAIT_TELEMETRY_ST);
+        next_action = NO_ACTION;
+      }
+      else if (event == CALIBRATION_FAIL_EV) {
+        orion_sm_change_state(WAIT_TELEMETRY_ST);
+        next_action = NO_ACTION;
+        // TODO handle this more gracefully
+        swerr(9, event); // Calibration was not successful check logs
+      }
+      break;
 
-      case  CALIBRATE_ST :  // calibrating Si5351a and ATMega328p clocks
-             orion_sm_no_op();
-    */
 
     case   WAIT_TELEMETRY_ST :  // Waiting for telemetry gathering cycle
       if (event == TELEMETRY_TIME_EV) {
@@ -92,7 +113,7 @@ OrionAction orion_state_machine(OrionEvent event) {
     case  TELEMETRY_ST :  // done gathering/calculating telemetry data
       if (event == TELEMETRY_DONE_EV) {
         orion_sm_change_state(WAIT_TX_PRIMARY_WSPR_ST);
-        next_action = NO_ACTION;
+        next_action = NO_ACTION;;
       }
       else
         swerr(3, event); // This event is not supported in this state
@@ -110,17 +131,27 @@ OrionAction orion_state_machine(OrionEvent event) {
       break;
 
 
-    case  TX_PRIMARY_WSPR_ST : { // transmitting Primary WSPR Msg
+    case  TX_PRIMARY_WSPR_ST : // transmitting Primary WSPR Msg
 
         if (event == PRIMARY_WSPR_TX_DONE_EV) { // Primary WSPR Transmission Complete
-          // Now we wait for another time event to trigger the telemetry cycle
-          orion_sm_change_state(WAIT_TELEMETRY_ST);
-          next_action = NO_ACTION;
+
+          if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && (is_selfcalibration_on())) {
+            // Now we initiate a four minute Calibration Cycle for the next transmission
+            orion_sm_change_state(CALIBRATE_ST);
+            next_action = CALIBRATION_ACTION;
+          }
+          else {
+            // If we don't support self Calibration then skip to telemetry
+            orion_sm_change_state(WAIT_TELEMETRY_ST);
+            next_action = NO_ACTION;
+          }
+
         }
         else
           swerr(5, event); // This event is not supported in this state
-        break;
-      }
+          
+       break;
+     
 
     /*
       case  WAIT_TX_SECONDARY_WSPR_ST : // waiting for Secondary WSPR Msg TX Window
