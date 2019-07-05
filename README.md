@@ -27,6 +27,11 @@ a=alpha b=beta, r=release
 
 Changelog : 
 
+v0.15a - Minor code changes to improve WSPR TX timing. Modified the orion_scheduler() function to generate the PRIMARY_WSPR_TX_TIME_EV
+at (Second == 1) rather than (Second = 0) to reduce DT values. Addressed Issue #1 raised against Orion in GITHUB, by
+synchronizing the 1.46 second WSPR TX interrupt to the start of the WSPR transmission, by clearing TCNT1 and doing a Prescaler
+reset to zero the count. 
+
 v0.14a - Orion Self calibration with Si5351a frequency correction using  a Huff-n-Puff Algorithm. Supports both External Interrupts
 and PinChangeInterrupts for GPS PPS signal and requires unused clock output from Si5351a to be wired to ATMEGA328p PIN D5, which
 is the external clock input for Timer1. Timer1 is used as a counter to sample a 3.2 Mhz calibration signal from the Si5351a.

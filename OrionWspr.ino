@@ -198,8 +198,8 @@ void calculate_gridsquare_6char(float lat, float lon) {
   g_grid_sq_6char[1] = (char)a1 + 'A';
   g_grid_sq_6char[2] = (char)o2 + '0';
   g_grid_sq_6char[3] = (char)a2 + '0';
-  g_grid_sq_6char[4] = (char)o3 + 'a';
-  g_grid_sq_6char[5] = (char)a3 + 'a';
+  g_grid_sq_6char[4] = (char)o3 + 'A';
+  g_grid_sq_6char[5] = (char)a3 + 'A';
   g_grid_sq_6char[6] = (char)0;
 } // calculate_gridsquare_6char
 
@@ -241,7 +241,7 @@ void encode_and_tx_wspr_msg1() {
 
   // Reset the tone to 0 and turn on the TX output
   si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL));
-
+  
   // Turn off the PARK clock
   si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
 
@@ -250,6 +250,13 @@ void encode_and_tx_wspr_msg1() {
   digitalWrite(TX_LED_PIN, HIGH);
 #endif
 
+  // We need to synchronize the 1.46 second Timer/Counter-1 interrupt to the start of WSPR transmission as it is free-running.
+  // We reset the counts to zero so we ensure that the first symbol is not truncated (i.e we get a full 1.46 seconds before the interrupt handler sets
+  // the g_proceed flag).  
+  noInterrupts();
+    TCNT1 = 0; // Clear the count for Timer/Counter-1 
+    GTCCR |= (1 << PSRSYNC); // Do a reset on the pre-scaler. Note that we are not using Timer 0, it shares a prescaler so it would also be impacted. 
+  interrupts();
   // Now send the rest of the message
   for (i = 0; i < SYMBOL_COUNT; i++)
   {
@@ -442,7 +449,7 @@ OrionAction orion_scheduler() {
     Minute = minute();
 
     // We beacon every 10th minute of the hour so we use minute() modulo 10 (i.e. on 00, 10, 20, 30, 40, 50)
-    if (((Minute % 10) == 0) && (Second == 0)) {
+    if (((Minute % 10) == 0) && (Second == 1)) {
       // Primary WSPR transmission should start on the 1st second of the minute, but there's a slight delay
       // in this code because it is limited to 1 second resolution.
       returned_action = orion_state_machine(PRIMARY_WSPR_TX_TIME_EV);
