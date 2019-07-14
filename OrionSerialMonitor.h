@@ -24,7 +24,8 @@
 void swerr(byte swerr_num, int data);
 void serial_monitor_begin();
 void serial_monitor_interface();
-void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq_hz);
+void orion_log_telemetry(struct OrionTxData *data);
+void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq_hz, uint8_t pwr_dbm);
 void orion_sm_trace_pre(byte state, byte event);
 void orion_sm_trace_post(byte state, byte processed_event,  byte resulting_action);
 bool is_qrm_avoidance_on();

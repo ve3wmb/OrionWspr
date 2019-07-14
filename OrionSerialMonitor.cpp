@@ -62,8 +62,8 @@
 #endif
 
 static bool g_debug_on_off = OFF; 
-static bool g_txlog_on_off = OFF;
-static bool g_info_log_on_off = ON;
+static bool g_txlog_on_off = ON;
+static bool g_info_log_on_off = OFF;
 static bool g_qrm_avoidance_on_off = ON;
 static bool g_selfcalibration_on_off = ON;
  
@@ -131,7 +131,7 @@ void swerr(byte swerr_num, int data){
     
 }
 void println_cmd_list(){
-  debugSerial.println(F("cmds: v = f/w version, d = toggle debug trace on/off, l = toggle TX log on/off, i= toggle info on/off, q = toggle qrm avoidance on/off, ? = cmd list"));
+  debugSerial.println(F("cmds: v = f/w version, d = debug trace on/off, l = TX log on/off, i= info on/off, q = qrm avoidance on/off, ? = cmd list"));
 } 
 
 
@@ -165,18 +165,50 @@ void orion_sm_trace_post(byte state, byte processed_event,  byte resulting_actio
     
 }
 
-void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq_hz){
+void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq_hz, uint8_t pwr_dbm){
 
   // If either txlog is turned on or info logs are turned on then log the TX
   if ((g_txlog_on_off == OFF) && (g_info_log_on_off == OFF)) return; 
   
   print_date_time();
-  debugSerial.print(F("WSPR TX Complete - GRIDSQ: "));
+  debugSerial.print(F("WSPR TX Complete - Grid: "));
   debugSerial.print(grid);
-  debugSerial.print(F(" Freq Hz: "));
+  debugSerial.print(F(", Pwr/dBm field: "));
+  debugSerial.print(pwr_dbm);
+  debugSerial.print(F(", Freq Hz: "));
   debugSerial.println(freq_hz);
+  
   print_monitor_prompt();
   
+}
+
+void orion_log_telemetry (struct OrionTxData *data) {
+  
+  // If either txlog is turned on or info logs are turned on then log the TX
+  if ((g_txlog_on_off == OFF) && (g_info_log_on_off == OFF)) return; 
+  
+  print_date_time();
+  debugSerial.print(F("WSPR Telemetry - Grid: "));
+  debugSerial.print( (*data).grid_sq_6char );
+  debugSerial.print(F(", alt_m: "));
+  debugSerial.print( (*data).altitude_m);
+  debugSerial.print(F(", spd_kn: "));
+  debugSerial.print( (*data).speed_kn);
+  debugSerial.print(F(", num_sats: "));
+  debugSerial.print( (*data).number_of_sats);
+  debugSerial.print(F(", gps_stat: "));
+  debugSerial.print( (*data).gps_status);
+  //debugSerial.print(F(", gps_fix: "));
+  //debugSerial.print( (*data).gps_3d_fix_ok_bool);
+  debugSerial.print(F(", batt_v: "));
+  debugSerial.print( (*data).battery_voltage_v);
+  debugSerial.print(F(", temp_c: "));
+  debugSerial.print( (*data).temperature_c);
+  debugSerial.print(F(", ptemp_c: "));
+  debugSerial.println( (*data).processor_temperature_c);
+  
+  print_monitor_prompt();
+
 }
 
 void log_debug_Timer1_info(byte it,int ofCount, int t_count){

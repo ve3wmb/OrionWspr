@@ -22,7 +22,7 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 
-#define ORION_FW_VERSION "v0.15a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+#define ORION_FW_VERSION "v0.16a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
                                   // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
                                   // a = alpha b=beta, r=release
                                   
@@ -44,14 +44,33 @@
 #define TIME_SET_INTERVAL_MS   600000         // 60,000 ms / minute x 10 = 10 minutes         
 
 // Type Definitions
-enum OrionWsprMsgType {PRIMARY_WSPR_MSG, SECONDARY_WSPR_MSG};
+enum OrionWsprMsgType {PRIMARY_WSPR_MSG, SECONDARY_TELEMETRY_MSG};
+
+
 struct OrionTelemetryData {
-  long altitude_m;
-  long speed_mps;
-  byte temperature_c;
-  byte battery_voltage_vX100;
-  byte number_of_sats;
-  bool gps_3d_fix_ok;
+  float latitude;
+  float longitude;
+  int32_t altitude_cm;
+  uint32_t speed_mkn;
+  uint8_t number_of_sats;
+  uint8_t gps_status; // This is really a boolean but it will take a byte anyway. 
+  // Non-GPS derived values
+  uint8_t temperature_c;
+  uint8_t processor_temperature_c;
+  uint8_t battery_voltage_v; 
 };
+
+struct OrionTxData {
+  char grid_sq_6char[7]; // 6 Character Grid Square calculated from GPS Lat/Long values.
+  int32_t altitude_m; 
+  uint32_t speed_kn; 
+  uint8_t number_of_sats;
+  uint8_t gps_status;
+  uint8_t temperature_c;
+  uint8_t processor_temperature_c;
+  uint8_t battery_voltage_v;
+ // bool gps_3d_fix_ok_bool;
+};
+
 
 #endif

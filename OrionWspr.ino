@@ -32,7 +32,7 @@
 // This firmware must be run on an Arduino or an AVR microcontroller with the Arduino Bootloader installed.
 // Pay special attention, the Timer1 Interrupt code is highly dependant on processor clock speed.
 //
-// I have tried to keep the AVR/Arduino port usage in the implementation configurable via #defines in OrionXConfig.h so this
+// I have tried to keep the AVR/Arduino port usage in the implementation configurable via #defines in OrionBoardConfig.h so that this
 // code can more easily be setup to run on different beacon boards such as those designed by DL6OW and N2NXZ and in future
 // the QRP Labs U3B. This was also the motivation for moving to a software I2C solution using SoftWire.h. The SoftWire interface
 // mimics the Wire library so switching back to using hardware-enable I2C is simple.
@@ -95,6 +95,8 @@
 #define GPS_PORT_NAME "NeoSWSerial"
 #endif
 
+#define GPS_STATUS_STD 4  //This needs to match the definition in NeoGPS for STATUS_STD 
+
 
 // WSPR specific defines. DO NOT CHANGE THESE VALUES, EVER!
 #define TONE_SPACING            146                 // ~1.46 Hz
@@ -122,15 +124,20 @@ byte g_last_second = 61;
 
 unsigned long g_beacon_freq_hz = FIXED_BEACON_FREQ_HZ;      // The Beacon Frequency in Hz
 
-char g_beacon_callsign[7] = BEACON_CALLSIGN_6CHAR;
+// Raw Telemetry data types define in OrionTelemetry.h
+// This contains the last validated Raw telemetry for use during GPS LOS (i.e. we use the last valid data if current data is missing)
+struct OrionTelemetryData g_last_valid_telemetry = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+struct OrionTelemetryData g_orion_current_telemetry {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-// Grid Square defaults to hardcoded value it is over-written with a value derived from GPS Coordinates
-char g_grid_loc[5] = BEACON_GRID_SQ_4CHAR;
-char g_grid_sq_6char[7] = "";
+// This differs from OrionRawTelemetry mostly in that the values are reformatted with the correct units (i.e altitude in metres vs cm etc.) 
+// Structure containing data to be used in WSPR Transmission. This is used to populate the values below prior to encoding the WSPR message for TX
+struct OrionTxData g_tx_data  = {'0', 0, 0, 0, 0, 0, 0, 0};
+
+// The following values are used in the encoding and transmission of the WSPR Type 1 messages. They are populated from g_tx_data according to the implemented Telemetry encoding rules. 
+char g_beacon_callsign[7] = BEACON_CALLSIGN_6CHAR;
+char g_grid_loc[5] = BEACON_GRID_SQ_4CHAR; // Grid Square defaults to hardcoded value it is over-written with a value derived from GPS Coordinates
 uint8_t g_tx_pwr_dbm = BEACON_TX_PWR_DBM;
 uint8_t g_tx_buffer[SYMBOL_COUNT];
-
-OrionTelemetryData g_orion_telemetry; // This is the structure varible containing all of the telemetry data. Type defined in OrionXConfig.h
 
 // Globals used by the Orion Scheduler
 OrionAction g_current_action = NO_ACTION; 
@@ -164,13 +171,15 @@ unsigned long get_tx_frequency() {
 }
 
 
+// -- Telemetry -------
+
 void calculate_gridsquare_6char(float lat, float lon) {
   /***************************************************************************************
     Calculate the 6 Character Maidenhead Gridsquare from the Lat and Long Coordinates
     We follow the convention that West and South are negative Lat/Long.
   ***************************************************************************************/
-  // For now this puts the calculated 6 character Maidenhead Grid square into the global character
-  // array g_grid_sq_6char[]
+  // This puts the calculated 6 character Maidenhead Grid square into the field grid_sq_6char[] 
+  // of g_tx_data
 
   // Temporary variables for calculation
   int o1, o2, o3;
@@ -194,39 +203,227 @@ void calculate_gridsquare_6char(float lat, float lon) {
   a3 = (int)(24.0 * remainder);
 
   // Generate the 6 character Grid Square
-  g_grid_sq_6char[0] = (char)o1 + 'A';
-  g_grid_sq_6char[1] = (char)a1 + 'A';
-  g_grid_sq_6char[2] = (char)o2 + '0';
-  g_grid_sq_6char[3] = (char)a2 + '0';
-  g_grid_sq_6char[4] = (char)o3 + 'A';
-  g_grid_sq_6char[5] = (char)a3 + 'A';
-  g_grid_sq_6char[6] = (char)0;
+  g_tx_data.grid_sq_6char[0] = (char)o1 + 'A';
+  g_tx_data.grid_sq_6char[1] = (char)a1 + 'A';
+  g_tx_data.grid_sq_6char[2] = (char)o2 + '0';
+  g_tx_data.grid_sq_6char[3] = (char)a2 + '0';
+  g_tx_data.grid_sq_6char[4] = (char)o3 + 'A';
+  g_tx_data.grid_sq_6char[5] = (char)a3 + 'A';
+  g_tx_data.grid_sq_6char[6] = (char)0;
 } // calculate_gridsquare_6char
 
 
-void get_position_and_telemetry() {
-  /******************************************
-    Get the GPS position and telemetry data
-  ******************************************/
-
-  // For now this takes no arguments.
-  // As it is expanded we will pass in a pointer to a structure that
-  // we populate with all of the telemetry and position information.
-  byte i;
-
+void get_telemetry_data(){
+  
+  // GPS Location 
   if (fix.valid.location) {
-    calculate_gridsquare_6char(fix.latitude(), fix.longitude()); // Puts 6 character grid square into g_grid_sq_6char[]
+    // We have a valid location so save the lat/long to current_telemetry
+    g_orion_current_telemetry.latitude = fix.latitude();
+    g_orion_current_telemetry.longitude = fix.longitude();
 
-    // Copy the first four characters of the Grid Square to g_grid_loc[] for use in the Primary WSPR Message
-    for (i = 0; i < 4; i++ ) g_grid_loc[i] = g_grid_sq_6char[i];
-    g_grid_loc[i] = (char) 0; // g_grid_loc[4]
+    // Copy the lat/long to last_valid_telemetry so we can use it if our fix is invalid (GPS LOS?) next time.
+    g_last_valid_telemetry.latitude = g_orion_current_telemetry.latitude;
+    g_last_valid_telemetry.longitude = g_orion_current_telemetry.longitude; 
   }
-  else
-    swerr(7, 0); // For now just Swerr if we don't have  valid fix .. we'll sort this out later.
+  else {
+    // Our position fix isn't valid so use the position information from the last_valid_telemetry, not ideal but better than nothing
+    g_orion_current_telemetry.latitude = g_last_valid_telemetry.latitude;
+    g_orion_current_telemetry.longitude =  g_last_valid_telemetry.longitude;
+  }
 
-  g_beacon_freq_hz = get_tx_frequency();
+  // GPS Altitude
+  if (fix.valid.altitude) {
+    g_orion_current_telemetry.altitude_cm = fix.altitude_cm();
+    g_last_valid_telemetry.altitude_cm = g_orion_current_telemetry.altitude_cm;  
+  }
+  else {
+    // Our altitude fix isn't valid so use the last valid data 
+    g_orion_current_telemetry.altitude_cm  = g_last_valid_telemetry.altitude_cm; 
+  }
 
-} //end get_position_and_telemetry
+  // GpS Speed
+  if (fix.valid.speed) { 
+    g_orion_current_telemetry.speed_mkn = fix.speed_mkn();
+    g_last_valid_telemetry.speed_mkn = g_orion_current_telemetry.speed_mkn;
+  }
+  else {
+    // Our speed fix isn't valid so use the last valid data
+    g_orion_current_telemetry.speed_mkn = g_last_valid_telemetry.speed_mkn;
+  }
+
+  // GPS number of sats 
+  if (fix.valid.satellites) {
+    g_orion_current_telemetry.number_of_sats = fix.satellites;
+    g_last_valid_telemetry.number_of_sats = g_orion_current_telemetry.number_of_sats;
+  }
+  else {
+    g_orion_current_telemetry.number_of_sats = g_last_valid_telemetry.number_of_sats;
+  }
+
+  // Overall GPS status.
+  if (fix.valid.status) {
+    g_orion_current_telemetry.gps_status = fix.status;
+
+    /*
+    if (fix.status >= GPS_STATUS_STD){
+      g_orion_current_telemetry.gps_status_ok = 1;
+    }
+    else {
+      g_orion_current_telemetry.gps_status_ok = 0;
+    }
+
+    g_last_valid_telemetry.gps_status_ok = g_orion_current_telemetry.gps_status_ok; 
+    
+  }
+  */
+  }
+  else {
+    // Assume that if we don't have a valid Status fix that the GPS status is not OK
+    g_orion_current_telemetry.gps_status = 0; 
+    
+  }
+  
+  // Todo ..  get the remaining non-GPS derived telemetry values.
+  // for now just set them to zero. Since these are not reliant on the GPS we assume that we
+  // will always be able to get valid values for these 
+  g_orion_current_telemetry.temperature_c = 0; 
+  g_orion_current_telemetry.processor_temperature_c = 0;
+  g_orion_current_telemetry.battery_voltage_v = 0; 
+
+   
+}
+
+// This function populates g_tx_data from the current_telemetry data, calculates the 6 char grid square and does unit conversions for most of the GPS data
+void set_tx_data() {
+    byte i;
+
+    // Calculate the 6 character grid square and put it into g_tx_data.grid_sq_6char[] 
+    calculate_gridsquare_6char(g_orion_current_telemetry.latitude, g_orion_current_telemetry.longitude); 
+
+    // Copy the first four characters of the Grid Square to g_grid_loc[] for use in the Primary Type 1 WSPR Message
+    for (i = 0; i < 4; i++ ) g_grid_loc[i] = g_tx_data.grid_sq_6char[i];
+    g_grid_loc[i] = (char) 0; // g_grid_loc[4]
+
+    // Set the transmit frequency
+    g_beacon_freq_hz = get_tx_frequency();
+
+    g_tx_data.altitude_m = g_orion_current_telemetry.altitude_cm / 100; // convert from cm to metres;
+    g_tx_data.speed_kn = g_orion_current_telemetry.speed_mkn / 1000;   // covert from thousandths of a knot to knots
+    g_tx_data.number_of_sats = g_orion_current_telemetry.number_of_sats; 
+    g_tx_data.gps_status = g_orion_current_telemetry.gps_status;
+    //g_tx_data.gps_3d_fix_ok_bool = (bool)g_orion_current_telemetry.gps_status_ok;
+    g_tx_data.temperature_c = g_orion_current_telemetry.temperature_c;
+    g_tx_data.processor_temperature_c = g_orion_current_telemetry.processor_temperature_c;
+    g_tx_data.battery_voltage_v = g_orion_current_telemetry.battery_voltage_v; 
+
+    orion_log_telemetry (&g_tx_data);  // Pass a pointer to the g_tx_data structure
+}
+
+// This function implements the KISS Telemetry scheme proposed by VE3GTC.
+// We use the PWR/dBm field in the WSPR Type 1 message to encode the 5th and 6th characters of the 
+// 6 character Maidenehad Grid Square, following the WSPR encoding rules for this field.
+// The 6 Character Grid Square is calculated from the GPS supplied Latitude and Longitude. 
+// A four character grid square is 1 degree latitude by 2 degrees longitude or approximately 60 nautical miles
+// by 120 nautical miles respectively (at the equator). This scheme increases resolution to 1/3 of degree 
+// (i.e about 20 nautical miles). We encode the 5th and 6th characters of the 6 character Grid Locator into the 
+ // Primary Type 1 message in the PWR (dBm) field,as follows :
+// 
+// Sub-square Latitude (character #6) 
+ 
+//  a b c d e f g                encodes as : 0 
+//  h i j k l m n o p q          encodes as : 3
+//  r s t u v w x                encodes as : 7 
+ 
+// Subsquare Longitude (character #5)
+ 
+//  a b c             encodes as : 0 (space)
+//  d e f g h i       encodes as : 1
+//  j k l             encodes as : 2
+//  m n o             encodes as : 3
+//  p q r s t u       encodes as : 4
+//  v w x             encodes as : 5
+//
+// So FN25di would have FN25 encoded is the GRID field and 'DI' encoded in the PWR/dBm field as 13. 
+// 
+
+uint8_t encode_gridloc_char5_char6(){
+  
+  uint8_t latitude = 0;
+  uint8_t longitude = 0; 
+
+  // Encode the 5th character of the 6 char Grid locator first, this is the longitude portion of the sub-square
+  switch (g_tx_data.grid_sq_6char[4]) {
+    
+    case 'A' : case 'B' : case 'C' :
+      longitude = 0; 
+      break;
+      
+    case 'D' : case 'E' : case 'F' : case 'G' : case 'H' : case 'I' :
+      longitude = 1;
+      break;
+      
+    case 'J' : case 'K' : case 'L' : 
+      longitude = 2;
+      break;
+      
+     case 'M' : case 'N' : case 'O' :
+      longitude = 3;
+      break;
+
+    case 'P' : case 'Q' : case 'R' : case 'S' : case 'T' : case 'U' :
+      longitude = 4;
+      break;
+
+     case 'V' : case 'W' : case 'X' :
+      longitude = 5;
+      break;
+      
+    default :
+      // We should never get here so Swerr
+      swerr(10, g_tx_data.grid_sq_6char[4]);
+     break;
+  } // end switch on 5th character of Grid Locator
+
+  longitude = longitude * 10; // This shifts the longitude value one decimal place to the left (i.e a 1 becomes 10). 
+
+  // Now we encode the 6th character (array indexing starts at 0) of the 6 character Grid locator, which represents the latitude portion of the sub-square
+  switch (g_tx_data.grid_sq_6char[5]) {
+    
+     case 'A' : case 'B' : case 'C' : case 'D' : case 'E' : case 'F' : case 'G' :
+      latitude = 0; 
+      break;
+      
+    case 'H' : case 'I' : case 'J' : case 'K' : case 'L' : case 'M' : case 'N' : case 'O' : case 'P' : case 'Q' :
+      latitude = 3;
+      break;
+
+    case 'R' : case 'S' : case 'T' : case 'U' : case 'V' : case 'W' : case 'X' :
+      latitude = 7;
+      break;
+      
+    default :
+      // We should never get here so Swerr
+      swerr(11, g_tx_data.grid_sq_6char[5]);
+     break;
+  }
+
+  return (longitude + latitude); 
+  
+} // end encode_gridloc_char5_char6
+
+
+void prepare_telemetry() 
+{
+   get_telemetry_data();
+   
+   set_tx_data();
+   
+   // We encode the 5th and 6th characters of the Grid square into the PWR/dBm field of the WSPR message.
+   g_tx_pwr_dbm = encode_gridloc_char5_char6();
+   
+} //end prepare_telemetry
+
+
 
 
 void encode_and_tx_wspr_msg1() {
@@ -386,7 +583,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
 
 
     case GET_TELEMETRY_ACTION :
-      get_position_and_telemetry();
+      prepare_telemetry();
 
       // Tell the Orion state machine that we have the telemetry
      returned_action = orion_state_machine(TELEMETRY_DONE_EV);
@@ -397,7 +594,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
         // Encode and transmit the Primary WSPR Message
         encode_and_tx_wspr_msg1();
 
-        orion_log_wspr_tx(PRIMARY_WSPR_MSG, g_grid_sq_6char, g_beacon_freq_hz); // If TX Logging is enabled then ouput a log
+        orion_log_wspr_tx(PRIMARY_WSPR_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
 
         // Tell the Orion state machine that we are done tranmitting the Primary WSPR message and update the current_action
         returned_action = orion_state_machine(PRIMARY_WSPR_TX_DONE_EV);
@@ -539,28 +736,6 @@ void setup() {
   // Set PARK CLK Output - Note that we leave SI5351A_PARK_CLK_NUM running at 108 Mhz to keep the SI5351 temperature more constant
   // This minimizes thermal induced drift during WSPR transmissions. The idea is borrowed from G0UPL's PARK feature on the QRP Labs U3S
   si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL)); // Turn on Park Clock
-
-  /*
-    // Set up Timer1 for interrupts every symbol period (i.e 1.46 Hz)
-    // The formula to calculate this is CPU_CLOCK_SPEED_HZ / (PRESCALE_VALUE) x (WSPR_CTC + 1)
-    // In this case we are using a prescale of 1024.
-    noInterrupts();          // Turn off interrupts.
-    TCCR1A = 0;              // Set entire TCCR1A register to 0; disconnects
-    //   interrupt output pins, sets normal waveform
-    //   mode.  We're just using Timer1 as a counter.
-    TCNT1  = 0;              // Initialize counter value to 0.
-    TCCR1B = (1 << CS12) |   // Set CS12 and CS10 bit to set prescale
-             (1 << CS10) |   //   to /1024
-             (1 << WGM12);   //   turn on CTC
-    //   which gives, 64 us ticks
-    TIMSK1 = (1 << OCIE1A);  // Enable timer compare interrupt.
-
-    // Note the the OCR1A value is processor clock speed dependant.
-    // WSPR_CTC must be defined as 5336 for an 8Mhz processor clock or 10672 for a 16 Mhz Clock
-    OCR1A = WSPR_CTC;       // Set up interrupt trigger count.
-
-    interrupts();            // Re-enable interrupts.
-  */
 
   // Setup the software serial port for the serial monitor interface
   serial_monitor_begin();

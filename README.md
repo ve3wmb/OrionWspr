@@ -1,16 +1,13 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.14a
-
-Current Limitations :
-- currently only encodes and sends primary WSPR Message, not secondary message containing Telemetry info.
-- beacons on a single band 
+Consider this to be Alpha Software. Current version is: v0.16a
+ 
 
 Current compile stats are:
 
-Sketch uses 20574 bytes or 66% (previously 59%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 994 bytes or 48% (previously 46%) of dynamic memory, leaving 1054 bytes for local variables. 
+Sketch uses 21296 bytes or 69% (previously 66%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1055 bytes or 51% (previously 48%) of dynamic memory, leaving 993 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -26,6 +23,8 @@ a=alpha b=beta, r=release
 
 
 Changelog : 
+v0.16 - Phase one of Telemetry. This update introduces some Telemetry Data structures and includes the encoding of the 5th and 6th 
+Maidenhead Grid Square characters into the PWR/dBm field of the primary WSPR message using a scheme developed by VE3GTC. 
 
 v0.15a - Minor code changes to improve WSPR TX timing. Modified the orion_scheduler() function to generate the PRIMARY_WSPR_TX_TIME_EV
 at (Second == 1) rather than (Second = 0) to reduce DT values. Addressed Issue #1 raised against Orion in GITHUB, by

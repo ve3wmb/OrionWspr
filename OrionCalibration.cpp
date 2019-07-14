@@ -13,7 +13,7 @@
    That yields a calibration frequency of 3.2 Mhz for an assumed 8Mhz clock.
 
    Frequency sampling is done for 10 seonds to achieve a 1/10 Hz resolution.
-   After each 10 second sample a frequency correction factor is applied using a Huff-n-Puff algorithm.
+   After each 10 second sample a frequency correction factor is applied using a Huff&Puff algorithm.
    Each calibration cycle samples and corrects for 24 iterations so takes approximately 4 minutes.
 
    Copyright 2019 Michael Babineau, VE3WMB <mbabineau.ve3wmb@gmail.com>
@@ -270,7 +270,7 @@ void do_calibration(unsigned long calibration_step) {
 
     old_cal_factor = cal_factor;
 
-    // We apply the Huff-n-Puff method of frequency adjustement by adding or subtracting a fixed calibration step over and over
+    // We apply the Huff&Puff method of frequency adjustement by adding or subtracting a fixed calibration step over and over
     // We discard the first measurement (i=0) as it is always low.
     if (i != 0 ) {
 
