@@ -75,7 +75,7 @@ ISR(TIMER1_OVF_vect) // Interrupt handler for Timer1 overflow. This is invoked w
    }
 
     if (gpsPPScounter == 11) { // Ten seconds of counting
-     EIMSK = (0 << INT1); // Disable GPS PPS external interrupt (INT1 on PIN D3)- CHANGE THIS to "INT0" IF USING PIN D2
+     EIMSK = (0 << INT0); // Disable GPS PPS external interrupt (INT1 on PIN D3)- CHANGE THIS to "INT0" IF USING PIN D2
      TCCR1B = 0; // Disable Timer1 Counter
 
      // We have completed 10 seconds of sampling, this triggers the frequency calculation on RTI
@@ -186,7 +186,7 @@ void setup_calibration()
   attachInterrupt(digitalPinToInterrupt(GPS_PPS_PIN), PPSinterruptISR, RISING);
 
   noInterrupts();
-    EIMSK = (0 << INT1); // Disable GPS PPS external interupt or now (INT1 on PIN D3) - CHANGE THIS TO "INT0" IF USING PIN D2
+    EIMSK = (0 << INT0); // Disable GPS PPS external interupt or now (INT1 on PIN D3) - CHANGE THIS TO "INT0" IF USING PIN D2
   interrupts();
 #else
   // We are using PIN Change Interrupts. This will require reconfiguration if using other than Atmega PIN A5 to connect to the GPS PPS PIN
@@ -245,7 +245,7 @@ void do_calibration(unsigned long calibration_step) {
     
 #if defined (GPS_PPS_ON_D2_OR_D3)  
       // Using External Interrupt on PIN D2 or D3 for GPS PPS 
-      EIMSK = (1 << INT1); // Enable GPS PPS external interupt (INT1 on PIN D3) - CHANGE THIS TO "INT0" if using PIN D2
+      EIMSK = (1 << INT0); // Enable GPS PPS external interupt (INT1 on PIN D3) - CHANGE THIS TO "INT0" if using PIN D2
 #else
       // Using PinChange Interrupts on Pins other than D2 or D3 
       PCIFR  = (1 << PCIF1);   // [Pin Change Interrupt Flag Register] clear any outstanding interrupts, counterintuitively writing a 1 clears the flag

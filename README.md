@@ -1,13 +1,13 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.16a
+Consider this to be Alpha Software. Current version is: v0.17a
  
 
 Current compile stats are:
 
-Sketch uses 21296 bytes or 69% (previously 66%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1055 bytes or 51% (previously 48%) of dynamic memory, leaving 993 bytes for local variables. 
+Sketch uses 221296 bytes or 69% (previously 69%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1055 bytes or 51% (previously 51%) of dynamic memory, leaving 993 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -23,7 +23,10 @@ a=alpha b=beta, r=release
 
 
 Changelog : 
-v0.16 - Phase one of Telemetry. This update introduces some Telemetry Data structures and includes the encoding of the 5th and 6th 
+v0.17a - add K1FMv1r3BoardConfig.h file to support K1FM's V1.3 board. Modify OrionCalibration.cpp to use external interrupt INT0 
+corresponding to the usage of D2 for PPS input from the GPS.  
+
+v0.16a - Phase one of Telemetry. This update introduces some Telemetry Data structures and includes the encoding of the 5th and 6th 
 Maidenhead Grid Square characters into the PWR/dBm field of the primary WSPR message using a scheme developed by VE3GTC. 
 
 v0.15a - Minor code changes to improve WSPR TX timing. Modified the orion_scheduler() function to generate the PRIMARY_WSPR_TX_TIME_EV
