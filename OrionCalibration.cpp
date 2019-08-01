@@ -233,6 +233,8 @@ void do_calibration(unsigned long calibration_step) {
   byte i;
   int timer_counter1 = 0;
 
+  log_calibration_start(); 
+
   // We do 24 frequency samples at 10 seconds each ( ~ 4 minutes) so the maximum correction is 24 X calibration_step
   for (i = 0; i < 24; i++) {
 

@@ -41,10 +41,10 @@
 // ------------------
 // Etherkit JTEncode (Library Manager)  https://github.com/etherkit/JTEncode
 // Time (Library Manager)   https://github.com/PaulStoffregen/Time - This provides a Unix-like System Time capability
-// SoftWire (https://github.com/stevemarple/SoftWire) - (assumes that you are using Software I2C otherwise Wire.h)
-// TinyGPS (Library Manager) http://arduiniana.org/libraries/TinyGPS/ - **** remove this ****
+// SoftI2CMaster (Software I2C with SoftWire wrapper) https://github.com/felias-fogg/SoftI2CMaster/blob/master/SoftI2CMaster.h - (assumes that you are using Software I2C otherwise Wire.h)
 // NeoGps (https://github.com/SlashDevin/NeoGPS) - NMEA and uBlox GPS parser using Nominal Configuration : date, time, lat/lon, altitude, speed, heading,
 //  number of satellites, HDOP, GPRMC and GPGGA messages.
+// NeoSWSerial (https://github.com/SlashDevin/NeoSWSerial)
 // LightChrono (https://github.com/SofaPirate/Chrono) - Simple Chronometer Library
 //
 // License
@@ -80,6 +80,7 @@
 #include "OrionStateMachine.h"
 #include "OrionSerialMonitor.h"
 #include "OrionCalibration.h"
+#include "OrionTelemetry.h"
 
 // NOTE THAT ALL #DEFINES THAT ARE INTENDED TO BE USER CONFIGURABLE ARE LOCATED IN OrionXConfig.h and OrionBoardConfig.h
 // DON'T TOUCH ANYTHING DEFINED IN THIS FILE WITHOUT SOME VERY CAREFUL CONSIDERATION.
@@ -127,20 +128,23 @@ unsigned long g_beacon_freq_hz = FIXED_BEACON_FREQ_HZ;      // The Beacon Freque
 // Raw Telemetry data types define in OrionTelemetry.h
 // This contains the last validated Raw telemetry for use during GPS LOS (i.e. we use the last valid data if current data is missing)
 struct OrionTelemetryData g_last_valid_telemetry = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-struct OrionTelemetryData g_orion_current_telemetry {0, 0, 0, 0, 0, 0, 0, 0, 0};
+struct OrionTelemetryData g_orion_current_telemetry {
+  0, 0, 0, 0, 0, 0, 0, 0, 0
+};
 
-// This differs from OrionRawTelemetry mostly in that the values are reformatted with the correct units (i.e altitude in metres vs cm etc.) 
-// Structure containing data to be used in WSPR Transmission. This is used to populate the values below prior to encoding the WSPR message for TX
+// This differs from OrionTelemetryData mostly in that the values are reformatted with the correct units (i.e altitude in metres vs cm etc.)
+// It is used to populate the global values below prior to encoding the WSPR message for TX
 struct OrionTxData g_tx_data  = {'0', 0, 0, 0, 0, 0, 0, 0};
 
-// The following values are used in the encoding and transmission of the WSPR Type 1 messages. They are populated from g_tx_data according to the implemented Telemetry encoding rules. 
+// The following values are used in the encoding and transmission of the WSPR Type 1 messages.
+// They are populated from g_tx_data according to the implemented Telemetry encoding rules.
 char g_beacon_callsign[7] = BEACON_CALLSIGN_6CHAR;
 char g_grid_loc[5] = BEACON_GRID_SQ_4CHAR; // Grid Square defaults to hardcoded value it is over-written with a value derived from GPS Coordinates
-uint8_t g_tx_pwr_dbm = BEACON_TX_PWR_DBM;
+uint8_t g_tx_pwr_dbm = BEACON_TX_PWR_DBM;  // This value is overwritten to encode telemetry data.
 uint8_t g_tx_buffer[SYMBOL_COUNT];
 
 // Globals used by the Orion Scheduler
-OrionAction g_current_action = NO_ACTION; 
+OrionAction g_current_action = NO_ACTION;
 
 // Global variables used in ISRs
 volatile bool g_proceed = false;
@@ -178,7 +182,7 @@ void calculate_gridsquare_6char(float lat, float lon) {
     Calculate the 6 Character Maidenhead Gridsquare from the Lat and Long Coordinates
     We follow the convention that West and South are negative Lat/Long.
   ***************************************************************************************/
-  // This puts the calculated 6 character Maidenhead Grid square into the field grid_sq_6char[] 
+  // This puts the calculated 6 character Maidenhead Grid square into the field grid_sq_6char[]
   // of g_tx_data
 
   // Temporary variables for calculation
@@ -213,9 +217,9 @@ void calculate_gridsquare_6char(float lat, float lon) {
 } // calculate_gridsquare_6char
 
 
-void get_telemetry_data(){
-  
-  // GPS Location 
+void get_telemetry_data() {
+
+  // GPS Location
   if (fix.valid.location) {
     // We have a valid location so save the lat/long to current_telemetry
     g_orion_current_telemetry.latitude = fix.latitude();
@@ -223,7 +227,7 @@ void get_telemetry_data(){
 
     // Copy the lat/long to last_valid_telemetry so we can use it if our fix is invalid (GPS LOS?) next time.
     g_last_valid_telemetry.latitude = g_orion_current_telemetry.latitude;
-    g_last_valid_telemetry.longitude = g_orion_current_telemetry.longitude; 
+    g_last_valid_telemetry.longitude = g_orion_current_telemetry.longitude;
   }
   else {
     // Our position fix isn't valid so use the position information from the last_valid_telemetry, not ideal but better than nothing
@@ -234,15 +238,15 @@ void get_telemetry_data(){
   // GPS Altitude
   if (fix.valid.altitude) {
     g_orion_current_telemetry.altitude_cm = fix.altitude_cm();
-    g_last_valid_telemetry.altitude_cm = g_orion_current_telemetry.altitude_cm;  
+    g_last_valid_telemetry.altitude_cm = g_orion_current_telemetry.altitude_cm;
   }
   else {
-    // Our altitude fix isn't valid so use the last valid data 
-    g_orion_current_telemetry.altitude_cm  = g_last_valid_telemetry.altitude_cm; 
+    // Our altitude fix isn't valid so use the last valid data
+    g_orion_current_telemetry.altitude_cm  = g_last_valid_telemetry.altitude_cm;
   }
 
   // GpS Speed
-  if (fix.valid.speed) { 
+  if (fix.valid.speed) {
     g_orion_current_telemetry.speed_mkn = fix.speed_mkn();
     g_last_valid_telemetry.speed_mkn = g_orion_current_telemetry.speed_mkn;
   }
@@ -251,7 +255,7 @@ void get_telemetry_data(){
     g_orion_current_telemetry.speed_mkn = g_last_valid_telemetry.speed_mkn;
   }
 
-  // GPS number of sats 
+  // GPS number of sats
   if (fix.valid.satellites) {
     g_orion_current_telemetry.number_of_sats = fix.satellites;
     g_last_valid_telemetry.number_of_sats = g_orion_current_telemetry.number_of_sats;
@@ -263,79 +267,68 @@ void get_telemetry_data(){
   // Overall GPS status.
   if (fix.valid.status) {
     g_orion_current_telemetry.gps_status = fix.status;
-
-    /*
-    if (fix.status >= GPS_STATUS_STD){
-      g_orion_current_telemetry.gps_status_ok = 1;
-    }
-    else {
-      g_orion_current_telemetry.gps_status_ok = 0;
-    }
-
-    g_last_valid_telemetry.gps_status_ok = g_orion_current_telemetry.gps_status_ok; 
-    
-  }
-  */
   }
   else {
     // Assume that if we don't have a valid Status fix that the GPS status is not OK
-    g_orion_current_telemetry.gps_status = 0; 
-    
-  }
-  
-  // Todo ..  get the remaining non-GPS derived telemetry values.
-  // for now just set them to zero. Since these are not reliant on the GPS we assume that we
-  // will always be able to get valid values for these 
-  g_orion_current_telemetry.temperature_c = 0; 
-  g_orion_current_telemetry.processor_temperature_c = 0;
-  g_orion_current_telemetry.battery_voltage_v = 0; 
+    g_orion_current_telemetry.gps_status = 0;
 
-   
+  }
+
+  // Get the remaining non-GPS derived telemetry values.
+  // Since these are not reliant on the GPS we assume that we will always be able to get valid values for these.
+#if defined (DS1820_TEMP_SENSOR_PRESENT)
+  g_orion_current_telemetry.temperature_c =  read_DS1820_temperature();
+#else
+  g_orion_current_telemetry.temperature_c = 0;
+#endif
+  g_orion_current_telemetry.processor_temperature_c = read_processor_temperature();
+  g_orion_current_telemetry.battery_voltage_v_x10 = read_voltage_v_x10();
+
 }
 
 // This function populates g_tx_data from the current_telemetry data, calculates the 6 char grid square and does unit conversions for most of the GPS data
 void set_tx_data() {
-    byte i;
+  byte i;
 
-    // Calculate the 6 character grid square and put it into g_tx_data.grid_sq_6char[] 
-    calculate_gridsquare_6char(g_orion_current_telemetry.latitude, g_orion_current_telemetry.longitude); 
+  // Calculate the 6 character grid square and put it into g_tx_data.grid_sq_6char[]
+  calculate_gridsquare_6char(g_orion_current_telemetry.latitude, g_orion_current_telemetry.longitude);
 
-    // Copy the first four characters of the Grid Square to g_grid_loc[] for use in the Primary Type 1 WSPR Message
-    for (i = 0; i < 4; i++ ) g_grid_loc[i] = g_tx_data.grid_sq_6char[i];
-    g_grid_loc[i] = (char) 0; // g_grid_loc[4]
+  // Copy the first four characters of the Grid Square to g_grid_loc[] for use in the Primary Type 1 WSPR Message
+  for (i = 0; i < 4; i++ ) g_grid_loc[i] = g_tx_data.grid_sq_6char[i];
+  g_grid_loc[i] = (char) 0; // g_grid_loc[4]
 
-    // Set the transmit frequency
-    g_beacon_freq_hz = get_tx_frequency();
+  // Set the transmit frequency
+  g_beacon_freq_hz = get_tx_frequency();
 
-    g_tx_data.altitude_m = g_orion_current_telemetry.altitude_cm / 100; // convert from cm to metres;
-    g_tx_data.speed_kn = g_orion_current_telemetry.speed_mkn / 1000;   // covert from thousandths of a knot to knots
-    g_tx_data.number_of_sats = g_orion_current_telemetry.number_of_sats; 
-    g_tx_data.gps_status = g_orion_current_telemetry.gps_status;
-    //g_tx_data.gps_3d_fix_ok_bool = (bool)g_orion_current_telemetry.gps_status_ok;
-    g_tx_data.temperature_c = g_orion_current_telemetry.temperature_c;
-    g_tx_data.processor_temperature_c = g_orion_current_telemetry.processor_temperature_c;
-    g_tx_data.battery_voltage_v = g_orion_current_telemetry.battery_voltage_v; 
+  g_tx_data.altitude_m = g_orion_current_telemetry.altitude_cm / 100; // convert from cm to metres;
+  g_tx_data.speed_kn = g_orion_current_telemetry.speed_mkn / 1000;   // covert from thousandths of a knot to knots
+  g_tx_data.number_of_sats = g_orion_current_telemetry.number_of_sats;
+  g_tx_data.gps_status = g_orion_current_telemetry.gps_status;
+  //g_tx_data.gps_3d_fix_ok_bool = (bool)g_orion_current_telemetry.gps_status_ok;
+  g_tx_data.temperature_c = g_orion_current_telemetry.temperature_c;
+  g_tx_data.processor_temperature_c = g_orion_current_telemetry.processor_temperature_c;
+  g_tx_data.battery_voltage_v_x10 = g_orion_current_telemetry.battery_voltage_v_x10;
 
-    orion_log_telemetry (&g_tx_data);  // Pass a pointer to the g_tx_data structure
+  orion_log_telemetry (&g_tx_data);  // Pass a pointer to the g_tx_data structure
 }
 
 // This function implements the KISS Telemetry scheme proposed by VE3GTC.
-// We use the PWR/dBm field in the WSPR Type 1 message to encode the 5th and 6th characters of the 
+// We use the PWR/dBm field in the WSPR Type 1 message to encode the 5th and 6th characters of the
 // 6 character Maidenehad Grid Square, following the WSPR encoding rules for this field.
-// The 6 Character Grid Square is calculated from the GPS supplied Latitude and Longitude. 
+// The 6 Character Grid Square is calculated from the GPS supplied Latitude and Longitude.
 // A four character grid square is 1 degree latitude by 2 degrees longitude or approximately 60 nautical miles
-// by 120 nautical miles respectively (at the equator). This scheme increases resolution to 1/3 of degree 
-// (i.e about 20 nautical miles). We encode the 5th and 6th characters of the 6 character Grid Locator into the 
- // Primary Type 1 message in the PWR (dBm) field,as follows :
-// 
-// Sub-square Latitude (character #6) 
- 
-//  a b c d e f g                encodes as : 0 
+// by 120 nautical miles respectively (at the equator). This scheme increases resolution to 1/3 of degree
+// (i.e about 20 nautical miles). We encode the 5th and 6th characters of the 6 character Grid Locator into the
+// Primary Type 1 message in the PWR (dBm) field,as follows :
+//
+// Sub-square Latitude (character #6)
+
+//  a b c d e f g                encodes as : 0
 //  h i j k l m n o p q          encodes as : 3
-//  r s t u v w x                encodes as : 7 
- 
+//  r s t u v w x                encodes as : 7
+
 // Subsquare Longitude (character #5)
- 
+
 //  a b c             encodes as : 0 (space)
 //  d e f g h i       encodes as : 1
 //  j k l             encodes as : 2
@@ -343,30 +336,30 @@ void set_tx_data() {
 //  p q r s t u       encodes as : 4
 //  v w x             encodes as : 5
 //
-// So FN25di would have FN25 encoded is the GRID field and 'DI' encoded in the PWR/dBm field as 13. 
-// 
+// So FN25di would have FN25 encoded is the GRID field and 'DI' encoded in the PWR/dBm field as 13.
+//
 
-uint8_t encode_gridloc_char5_char6(){
-  
+uint8_t encode_gridloc_char5_char6() {
+
   uint8_t latitude = 0;
-  uint8_t longitude = 0; 
+  uint8_t longitude = 0;
 
   // Encode the 5th character of the 6 char Grid locator first, this is the longitude portion of the sub-square
   switch (g_tx_data.grid_sq_6char[4]) {
-    
+
     case 'A' : case 'B' : case 'C' :
-      longitude = 0; 
+      longitude = 0;
       break;
-      
+
     case 'D' : case 'E' : case 'F' : case 'G' : case 'H' : case 'I' :
       longitude = 1;
       break;
-      
-    case 'J' : case 'K' : case 'L' : 
+
+    case 'J' : case 'K' : case 'L' :
       longitude = 2;
       break;
-      
-     case 'M' : case 'N' : case 'O' :
+
+    case 'M' : case 'N' : case 'O' :
       longitude = 3;
       break;
 
@@ -374,25 +367,25 @@ uint8_t encode_gridloc_char5_char6(){
       longitude = 4;
       break;
 
-     case 'V' : case 'W' : case 'X' :
+    case 'V' : case 'W' : case 'X' :
       longitude = 5;
       break;
-      
+
     default :
       // We should never get here so Swerr
       swerr(10, g_tx_data.grid_sq_6char[4]);
-     break;
+      break;
   } // end switch on 5th character of Grid Locator
 
-  longitude = longitude * 10; // This shifts the longitude value one decimal place to the left (i.e a 1 becomes 10). 
+  longitude = longitude * 10; // This shifts the longitude value one decimal place to the left (i.e a 1 becomes 10).
 
   // Now we encode the 6th character (array indexing starts at 0) of the 6 character Grid locator, which represents the latitude portion of the sub-square
   switch (g_tx_data.grid_sq_6char[5]) {
-    
-     case 'A' : case 'B' : case 'C' : case 'D' : case 'E' : case 'F' : case 'G' :
-      latitude = 0; 
+
+    case 'A' : case 'B' : case 'C' : case 'D' : case 'E' : case 'F' : case 'G' :
+      latitude = 0;
       break;
-      
+
     case 'H' : case 'I' : case 'J' : case 'K' : case 'L' : case 'M' : case 'N' : case 'O' : case 'P' : case 'Q' :
       latitude = 3;
       break;
@@ -400,33 +393,33 @@ uint8_t encode_gridloc_char5_char6(){
     case 'R' : case 'S' : case 'T' : case 'U' : case 'V' : case 'W' : case 'X' :
       latitude = 7;
       break;
-      
+
     default :
       // We should never get here so Swerr
       swerr(11, g_tx_data.grid_sq_6char[5]);
-     break;
+      break;
   }
 
-  return (longitude + latitude); 
-  
+  return (longitude + latitude);
+
 } // end encode_gridloc_char5_char6
 
 
-void prepare_telemetry() 
+void prepare_telemetry()
 {
-   get_telemetry_data();
-   
-   set_tx_data();
-   
-   // We encode the 5th and 6th characters of the Grid square into the PWR/dBm field of the WSPR message.
-   g_tx_pwr_dbm = encode_gridloc_char5_char6();
-   
+  get_telemetry_data();
+
+  set_tx_data();
+
+  // We encode the 5th and 6th characters of the Grid square into the PWR/dBm field of the WSPR message.
+  g_tx_pwr_dbm = encode_gridloc_char5_char6();
+
 } //end prepare_telemetry
 
 
 
 
-void encode_and_tx_wspr_msg1() {
+void encode_and_tx_wspr_msg() {
   /**************************************************************************
     Transmit the Primary WSPR Message
     Loop through the transmit buffer, transmitting one character at a time.
@@ -438,7 +431,7 @@ void encode_and_tx_wspr_msg1() {
 
   // Reset the tone to 0 and turn on the TX output
   si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL));
-  
+
   // Turn off the PARK clock
   si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
 
@@ -449,10 +442,10 @@ void encode_and_tx_wspr_msg1() {
 
   // We need to synchronize the 1.46 second Timer/Counter-1 interrupt to the start of WSPR transmission as it is free-running.
   // We reset the counts to zero so we ensure that the first symbol is not truncated (i.e we get a full 1.46 seconds before the interrupt handler sets
-  // the g_proceed flag).  
+  // the g_proceed flag).
   noInterrupts();
-    TCNT1 = 0; // Clear the count for Timer/Counter-1 
-    GTCCR |= (1 << PSRSYNC); // Do a reset on the pre-scaler. Note that we are not using Timer 0, it shares a prescaler so it would also be impacted. 
+  TCNT1 = 0; // Clear the count for Timer/Counter-1
+  GTCCR |= (1 << PSRSYNC); // Do a reset on the pre-scaler. Note that we are not using Timer 0, it shares a prescaler so it would also be impacted.
   interrupts();
   // Now send the rest of the message
   for (i = 0; i < SYMBOL_COUNT; i++)
@@ -470,7 +463,7 @@ void encode_and_tx_wspr_msg1() {
 
   // Re-enable the Park Clock
   si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL)); // Turn on Park Clock
-  
+
 
   // If we are using the TX LED turn it off
 #if defined (TX_LED_PRESENT)
@@ -478,7 +471,7 @@ void encode_and_tx_wspr_msg1() {
 #endif
 
   delay(1000); // Delay one second
-} // end of encode_and_tx_wspr_msg1()
+} // end of encode_and_tx_wspr_msg()
 
 
 void get_gps_fix_and_time() {
@@ -530,22 +523,23 @@ OrionAction process_orion_sm_action (OrionAction action) {
     This is where all of the work gets triggered by processing Actions returned by the state machine.
     We don't need to worry about state we just do what we are told.
   ****************************************************************************************************/
-  OrionAction returned_action = NO_ACTION; 
-  
+  OrionAction returned_action = NO_ACTION;
+
   switch (action) {
 
 
     case NO_ACTION :
+      returned_action = NO_ACTION;
       break;
 
 
-     case WSPR_TX_INT_SETUP_ACTION :
+    case WSPR_TX_INT_SETUP_ACTION :
       // This action is used to handle the case where self calibration is not supported by the board in use.
-      // Usually we rely on the post-calibration clean-up to setup and enable the WSPR TX Interrupt 
+      // Usually we rely on the post-calibration clean-up to setup and enable the WSPR TX Interrupt
       // so this is no longer done in setup(). In the case where we skip the Startup self-calibration,
       // because self-calibration isn't suported, we need a mechanism to setup this timer Interrupt, so
-      // here it is. 
-      
+      // here it is.
+
       // Setup 1.46 sec Timer1 interrupt for WSPR Transmission
       wspr_tx_interrupt_setup();
       returned_action = NO_ACTION;
@@ -553,24 +547,23 @@ OrionAction process_orion_sm_action (OrionAction action) {
 
 
     case CALIBRATION_ACTION :
-    
+
       // re-initialize Interrupts for calibration
       reset_for_calibration();
 
       //TODO This should be modified with a boolean return code so we can handle calibration fail.
       do_calibration(FINE_CORRECTION_STEP);
-      
+
       // Restore Timer1 interrupt for WSPR Transmission
       wspr_tx_interrupt_setup();
-      
       returned_action = orion_state_machine(CALIBRATION_DONE_EV);
       break;
 
     case STARTUP_CALIBRATION_ACTION :
-    
+
       // Initialize Interrupts for Initial calibration
       setup_calibration();
-      
+
       //TODO This should be modified with a boolean return code so we can handle calibration fail.
       do_calibration(COARSE_CORRECTION_STEP); // Initial calibration with 1 Hz correction step
 
@@ -578,7 +571,6 @@ OrionAction process_orion_sm_action (OrionAction action) {
       wspr_tx_interrupt_setup();
 
       returned_action = orion_state_machine(CALIBRATION_DONE_EV);
-
       break;
 
 
@@ -586,34 +578,88 @@ OrionAction process_orion_sm_action (OrionAction action) {
       prepare_telemetry();
 
       // Tell the Orion state machine that we have the telemetry
-     returned_action = orion_state_machine(TELEMETRY_DONE_EV);
+      returned_action = orion_state_machine(TELEMETRY_DONE_EV);
       break;
 
 
-    case TX_WSPR_MSG1_ACTION : {
-        // Encode and transmit the Primary WSPR Message
-        encode_and_tx_wspr_msg1();
+    case TX_WSPR_MSG1_ACTION :
 
-        orion_log_wspr_tx(PRIMARY_WSPR_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
+      // Encode the 5th and 6th Maidenhead Grid characters into the pwr/dBm field
+      // g_tx_pwr_dbm = encode_gridloc_char5_char6();
+      // Note that this is actually done as part of the Telemetry gathering so no need to redo it.
+      // It is the same story for :
+      //  g_beacon_freq_hz = get_tx_frequency(); .. this is already covered for the Primary Msg in the Telemetry Phase. 
 
-        // Tell the Orion state machine that we are done tranmitting the Primary WSPR message and update the current_action
-        returned_action = orion_state_machine(PRIMARY_WSPR_TX_DONE_EV);
-        break;
-      }
+      // Encode and transmit the Primary WSPR Message
+      encode_and_tx_wspr_msg();
 
-    /*
-      case TX_WSPR_MSG2_ACTION : {
+      orion_log_wspr_tx(PRIMARY_WSPR_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
+
+      // Tell the Orion state machine that we are done tranmitting the Primary WSPR message and update the current_action
+      returned_action = orion_state_machine(PRIMARY_WSPR_TX_DONE_EV);
       break;
-      }
-    */
 
-    default : {
-        break;
-      }
 
-  } // select
+    case TX_WSPR_MIN02_ACTION :
+    case TX_WSPR_MIN22_ACTION :
+    case TX_WSPR_MIN42_ACTION :  // TX altitude Telemetry
 
-  return returned_action; 
+      // At  hh:02, hh:22, hh:42 encode and transmit the Secondary WSPR Message with altitude encoded into the pwr/dBm field
+      g_tx_pwr_dbm = encode_altitude(g_tx_data.altitude_m);
+      
+      // Set the transmit frequency. This will ensure that QRM Avoidance is utilized for Telemetry Messages as well (i.e different TX frequency than Primary WSPR Msg)
+      g_beacon_freq_hz = get_tx_frequency();
+      
+      encode_and_tx_wspr_msg();
+      orion_log_wspr_tx(ALTITUDE_TELEM_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
+
+      // Tell the Orion state machine that we are done tranmitting the Telemetry WSPR message and update the current_action
+      returned_action = orion_state_machine(SECONDARY_WSPR_TX_DONE_EV);
+      break;
+
+    case TX_WSPR_MIN12_ACTION :
+    case TX_WSPR_MIN52_ACTION :  //  -  TX voltage Telemetry
+
+      // At hh:12, hh:22, hh:52 encode and transmit the Secondary WSPR Message with voltage encoded into the pwr/dBm field
+      g_tx_pwr_dbm = encode_voltage(g_tx_data.battery_voltage_v_x10); 
+
+      // Set the transmit frequency. This will ensure that QRM Avoidance is utilized for Telemetry Messages as well (i.e different TX frequency than Primary WSPR Msg)
+      g_beacon_freq_hz = get_tx_frequency();
+      
+      encode_and_tx_wspr_msg();
+      orion_log_wspr_tx(VOLTAGE_TELEM_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
+
+      // Tell the Orion state machine that we are done tranmitting the Telemetry WSPR message and update the current_action
+      returned_action = orion_state_machine(SECONDARY_WSPR_TX_DONE_EV);
+      break;
+
+
+    case TX_WSPR_MIN32_ACTION : //  -  TX temperature Telemetry
+      // At hh:32 encode and transmit the Secondary WSPR Message with temperature encoded into the pwr/dBm field
+#if defined (DS1820_TEMP_SENSOR_PRESENT) | defined (TMP36_TEMP_SENSOR_PRESENT )
+      g_tx_pwr_dbm = encode_temperature(g_tx_data.temperature_c); // Use Sensor data
+#else
+      g_tx_pwr_dbm = encode_temperature(g_tx_data.processor_temperature_c); // Use internal processor temperature
+#endif
+      // Set the transmit frequency. This will ensure that QRM Avoidance is utilized for Telemetry Messages as well (i.e different TX frequency than Primary WSPR Msg)
+      g_beacon_freq_hz = get_tx_frequency();
+      
+      encode_and_tx_wspr_msg();
+      orion_log_wspr_tx(TEMPERATURE_TELEM_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
+
+      // Tell the Orion state machine that we are done transmitting the Telemetry WSPR message and update the current_action
+      returned_action = orion_state_machine(SECONDARY_WSPR_TX_DONE_EV);
+      break;
+
+
+    default :
+      returned_action = NO_ACTION;
+      break;
+
+
+  } // end switch (action)
+
+  return returned_action;
 
 } //  process_orion_sm_action
 
@@ -627,44 +673,90 @@ OrionAction orion_scheduler() {
   byte i;
   OrionAction returned_action = NO_ACTION;
 
-  // We need to figure out how to determine that we are close to Beaconing and grab the latest Telemetry data
-  // this includes calculating the 6 character GRID Square. This would ideally happen at 59, 9, 19, 29 and 49 minutes and a couple of
-  // seconds before.
+
   if (timeStatus() == timeSet) { // We have valid time from the GPS otherwise do nothing
 
     // The scheduler will get called many times per second but we only want it to run once per second,
     // otherwise we might generate multiples of the same time event on these extra passes through the scheduler.
     Second = second();
 
-    // If we are on the same second as the last time we went through here then bail-out with NO_ACTION returned.
+    // If we are on the same second as the last time we went through here then we bail-out with NO_ACTION returned.
+    // This prevents us from sending time events more than once as our time resolution is only one second but we might
+    // make it back here in less than 1 second.
     if (Second == g_last_second) return returned_action;
 
-    // If the current second is different from the last time then it has been updated then we run.
+    // If the current second is different from the last time, then it has been updated so we run.
 
-    g_last_second = Second; // Remember what second we are on for the next time the scheduler is called
+    g_last_second = Second; // Remember what second we are currently on for the next time the scheduler is called
 
     Minute = minute();
 
-    // We beacon every 10th minute of the hour so we use minute() modulo 10 (i.e. on 00, 10, 20, 30, 40, 50)
-    if (((Minute % 10) == 0) && (Second == 1)) {
-      // Primary WSPR transmission should start on the 1st second of the minute, but there's a slight delay
-      // in this code because it is limited to 1 second resolution.
-      returned_action = orion_state_machine(PRIMARY_WSPR_TX_TIME_EV);
-    }
-    else if (Second == 30) { // Note the choice of a second value of 30 is arbitrary
+    if (Second == 1) { // To simplify things we trigger everything at the one second mark if we are on the correct minute
 
-      // check once per minute at 30 seconds after the minute to see if it is time to collect new telemetry data
-      for (i = 9; i < 60; i = i + 10) {
-        // i.e. i is 9, 19, 29, 39, 49, 59 which is one minute prior to transmission time
+      switch (Minute) {
 
-        if (Minute == i) {
-          // If are about thirty seconds prior to a scheduled Beacon Transmission collect new telemetry info
-          returned_action = orion_state_machine(TELEMETRY_TIME_EV);
+        // Primary WSPR Transmission Triggers every 10th minute of the hour on the first second
+        case 0  :
+        case 10 :
+        case 20 :
+        case 30 :
+        case 40 :
+        case 50 :
+          // Primary WSPR transmission should start on the 1st second of the minute, but there's a slight delay
+          // in this code because it is limited to 1 second resolution.
+          return (orion_state_machine(PRIMARY_WSPR_TX_TIME_EV)); // This is a bit time critical so we try to minimize any extra processing
+
+        // These are also time critical as they trigger Telemetry messages so we try to minimize any extra processing by returning directly
+        // Telemetry is sent in the next even minute slot after the Primary message
+        case 2  : return (orion_state_machine(WSPR_TX_TIME_MIN02_EV));
+        case 12 : return (orion_state_machine(WSPR_TX_TIME_MIN12_EV));
+        case 22 : return (orion_state_machine(WSPR_TX_TIME_MIN22_EV));
+        case 32 : return (orion_state_machine(WSPR_TX_TIME_MIN32_EV));
+        case 42 : return (orion_state_machine(WSPR_TX_TIME_MIN42_EV));
+        case 52 : return (orion_state_machine(WSPR_TX_TIME_MIN52_EV));
+
+        case 9  :
+        case 19 :
+        case 29 :
+        case 39 :
+        case 49 :
+        case 59 :
+          // If are one minute prior to a scheduled Beacon Transmission, trigger collection of new telemetry info
+          returned_action =  (orion_state_machine(TELEMETRY_TIME_EV));
           break;
-        }
-      } // end for
 
-    } // end else if
+        default :
+          break;
+
+
+      } // end switch (Minute)
+
+
+    } // end if (Second == 1)
+
+    /*
+       // We beacon every 10th minute of the hour so we use minute() modulo 10 (i.e. on 00, 10, 20, 30, 40, 50)
+       if (((Minute % 10) == 0) && (Second == 1)) {
+         // Primary WSPR transmission should start on the 1st second of the minute, but there's a slight delay
+         // in this code because it is limited to 1 second resolution.
+         returned_action = orion_state_machine(PRIMARY_WSPR_TX_TIME_EV);
+       }
+       else if (Second == 30) { // Note the choice of a second value of 30 is arbitrary
+
+         // check once per minute at 30 seconds after the minute to see if it is time to collect new telemetry data
+         for (i = 9; i < 60; i = i + 10) {
+           // i.e. i is 9, 19, 29, 39, 49, 59 which is one minute prior to transmission time
+
+           if (Minute == i) {
+             // If are about thirty seconds prior to a scheduled Beacon Transmission collect new telemetry info
+             returned_action = orion_state_machine(TELEMETRY_TIME_EV);
+             break;
+           }
+         } // end for
+
+       } // end else if
+
+    */
 
   } // end if timestatus == timeset
 
@@ -748,7 +840,7 @@ void setup() {
 
   // Tell the state machine that we are done SETUP
   g_current_action = orion_state_machine(SETUP_DONE_EV);
-  
+
 } // end setup()
 
 
@@ -758,20 +850,20 @@ void loop() {
   ****************************************************************************************************************************/
   // We need to ensure that the GPS is up and running and we have valid time before we proceed
   // This should only get invoked on system cold start. It ensures that the scheduler and logging will properly function
-  
+
   /*if (orion_sm_get_current_state()== CALIBRATE_ST) {
-   while (timeStatus() == timeNotSet ) { // System date/time isn't set yet
+    while (timeStatus() == timeNotSet ) { // System date/time isn't set yet
      get_gps_fix_and_time(); // Try to get a GPS fix
      delay(1000); // Wait one second
-   }
-    
-  }
+    }
+
+    }
   */
   // This triggers actual work when the state machine returns an OrionAction
-  while(g_current_action != NO_ACTION) {
+  while (g_current_action != NO_ACTION) {
     g_current_action = process_orion_sm_action(g_current_action);
   }
-  
+
   // Get the current GPS fix and update the system clock time if needed
   get_gps_fix_and_time();
 

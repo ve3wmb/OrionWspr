@@ -62,7 +62,7 @@
 #endif
 
 static bool g_debug_on_off = OFF; 
-static bool g_txlog_on_off = OFF;
+static bool g_txlog_on_off = ON;
 static bool g_info_log_on_off = ON;
 static bool g_qrm_avoidance_on_off = ON;
 static bool g_selfcalibration_on_off = ON;
@@ -171,13 +171,35 @@ void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq
   if ((g_txlog_on_off == OFF) && (g_info_log_on_off == OFF)) return; 
   
   print_date_time();
-  debugSerial.print(F("WSPR TX Complete - Grid: "));
-  debugSerial.print(grid);
-  debugSerial.print(F(", Pwr/dBm field: "));
+
+  switch (msgType) {
+    
+    case PRIMARY_WSPR_MSG :
+      debugSerial.print(F("Primary WSPR TX - Grid: "));
+      debugSerial.print(grid);
+      break;
+
+    case ALTITUDE_TELEM_MSG :
+      debugSerial.print(F("Telemetry WSPR TX - ALT-> "));
+      break;
+      
+    case TEMPERATURE_TELEM_MSG :
+      debugSerial.print(F("Telemetry WSPR TX - TEMP-> "));
+      break;
+      
+    case VOLTAGE_TELEM_MSG :
+      debugSerial.print(F("Telemetry WSPR TX - VOLT-> "));
+      break;
+
+    default :
+      break; 
+    
+  }
+    
+  debugSerial.print(F(" Pwr/dBm field:"));
   debugSerial.print(pwr_dbm);
   debugSerial.print(F(", Freq Hz: "));
   debugSerial.println(freq_hz);
-  
   print_monitor_prompt();
   
 }
@@ -188,24 +210,25 @@ void orion_log_telemetry (struct OrionTxData *data) {
   if ((g_txlog_on_off == OFF) && (g_info_log_on_off == OFF)) return; 
   
   print_date_time();
-  debugSerial.print(F("WSPR Telemetry - Grid: "));
+  debugSerial.print(F("Telem Grid:"));
   debugSerial.print( (*data).grid_sq_6char );
-  debugSerial.print(F(", alt_m: "));
+  debugSerial.print(F(", alt_m:"));
   debugSerial.print( (*data).altitude_m);
-  debugSerial.print(F(", spd_kn: "));
+  debugSerial.print(F(", spd_kn:"));
   debugSerial.print( (*data).speed_kn);
-  debugSerial.print(F(", num_sats: "));
+  debugSerial.print(F(", num_sats:"));
   debugSerial.print( (*data).number_of_sats);
-  debugSerial.print(F(", gps_stat: "));
+  debugSerial.print(F(", gps_stat:"));
   debugSerial.print( (*data).gps_status);
   //debugSerial.print(F(", gps_fix: "));
   //debugSerial.print( (*data).gps_3d_fix_ok_bool);
-  debugSerial.print(F(", batt_v: "));
-  debugSerial.print( (*data).battery_voltage_v);
-  debugSerial.print(F(", temp_c: "));
-  debugSerial.print( (*data).temperature_c);
-  debugSerial.print(F(", ptemp_c: "));
-  debugSerial.println( (*data).processor_temperature_c);
+  debugSerial.print(F(", batt_v_x10:"));
+  debugSerial.print( (*data).battery_voltage_v_x10);
+  debugSerial.print(F(", ptemp_c:"));
+  debugSerial.print( (*data).processor_temperature_c);
+  debugSerial.print(F(", temp_c:"));
+  debugSerial.println( (*data).temperature_c);
+  
   
   print_monitor_prompt();
 
@@ -223,6 +246,17 @@ void log_debug_Timer1_info(byte it,int ofCount, int t_count){
   debugSerial.println(t_count);
   print_monitor_prompt();
 }
+
+// This is intended as a ligthweight notification of the start of calibration without all
+// of the gory details that log calibration provides. It is only logged if txlog is ON
+void log_calibration_start() {
+  if (g_txlog_on_off == OFF) return; 
+  
+  print_date_time();
+  debugSerial.println(F(" ** running CALIBRATION for 4 minutes **"));
+  print_monitor_prompt();
+} 
+
 void log_calibration(uint64_t sampled_freq, int32_t o_cal_factor, int32_t n_cal_factor)
 { 
   if (g_info_log_on_off == OFF) return;

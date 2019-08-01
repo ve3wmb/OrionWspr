@@ -21,6 +21,9 @@
 #include <Arduino.h>
 #include "OrionXConfig.h"
 
+// For use in info logging
+enum OrionWsprMsgType {PRIMARY_WSPR_MSG, ALTITUDE_TELEM_MSG, TEMPERATURE_TELEM_MSG, VOLTAGE_TELEM_MSG};
+
 void swerr(byte swerr_num, int data);
 void serial_monitor_begin();
 void serial_monitor_interface();
@@ -32,4 +35,5 @@ bool is_qrm_avoidance_on();
 bool is_selfcalibration_on();  
 void log_debug_Timer1_info(byte i, int ofCount, int t_count);
 void log_calibration(uint64_t sampled_freq, int32_t o_cal_factor, int32_t n_cal_factor );
+void log_calibration_start(); 
 #endif

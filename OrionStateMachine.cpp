@@ -80,8 +80,9 @@ OrionAction orion_state_machine(OrionEvent event) {
         }
         else
           swerr(1, event); // This event is not supported in this state
-        break;
+        
       }
+      break;
 
     case  CALIBRATE_ST :  // calibrating Si5351a clock
       if (event == CALIBRATION_DONE_EV ) {
@@ -132,8 +133,57 @@ OrionAction orion_state_machine(OrionEvent event) {
 
 
     case  TX_PRIMARY_WSPR_ST : // transmitting Primary WSPR Msg
+      if (event == PRIMARY_WSPR_TX_DONE_EV) { // Primary WSPR Transmission Complete
+          orion_sm_change_state(WAIT_TX_SECONDARY_WSPR_ST);
+          next_action = NO_ACTION;    
+      }
+      else
+        swerr(13, event); // This event is not supported in this state
+      break;
+          
+   
+      case  WAIT_TX_SECONDARY_WSPR_ST : // waiting for Secondary WSPR Msg TX Window
+      
+              switch (event) {
+                case WSPR_TX_TIME_MIN02_EV :
+                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+                  next_action = TX_WSPR_MIN02_ACTION;
+                  break;
+                
+                case WSPR_TX_TIME_MIN12_EV :
+                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+                  next_action = TX_WSPR_MIN12_ACTION;
+                  break;
+                
+                case WSPR_TX_TIME_MIN22_EV :
+                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+                  next_action = TX_WSPR_MIN22_ACTION;
+                  break;
+                  
+                case WSPR_TX_TIME_MIN32_EV :                   
+                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+                  next_action = TX_WSPR_MIN32_ACTION;
+                  break;
+                  
+                case WSPR_TX_TIME_MIN42_EV :
+                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+                  next_action = TX_WSPR_MIN42_ACTION;
+                  break;
+                  
+                case WSPR_TX_TIME_MIN52_EV :
+                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+                  next_action = TX_WSPR_MIN52_ACTION;
+                  break;
+                
+                default : 
+                  swerr(12, event); // This event is not supported in this state
+         
+              } // end switch(event)
+              break;   
+           
 
-        if (event == PRIMARY_WSPR_TX_DONE_EV) { // Primary WSPR Transmission Complete
+      case  TX_SECONDARY_WSPR_ST : // transmitting Secondary WSPR Msg
+       if (event == SECONDARY_WSPR_TX_DONE_EV) { // Secondary WSPR Transmission Complete
 
           if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && (is_selfcalibration_on())) {
             // Now we initiate a four minute Calibration Cycle for the next transmission
@@ -149,19 +199,13 @@ OrionAction orion_state_machine(OrionEvent event) {
         }
         else
           swerr(5, event); // This event is not supported in this state
-          
-       break;
-     
+        break;
 
-    /*
-      case  WAIT_TX_SECONDARY_WSPR_ST : // waiting for Secondary WSPR Msg TX Window
-              orion_sm_no_op();
 
-      case  TX_SECONDARY_WSPR_ST : // transmitting Secondary WSPR Msg
-              orion_sm_no_op();
-    */
-
-    default : swerr(6, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.
+    default : 
+        swerr(6, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.
+        break;
+    
 
   } // end switch
 

@@ -44,31 +44,28 @@
 #define TIME_SET_INTERVAL_MS   600000         // 60,000 ms / minute x 10 = 10 minutes         
 
 // Type Definitions
-enum OrionWsprMsgType {PRIMARY_WSPR_MSG, SECONDARY_TELEMETRY_MSG};
-
 
 struct OrionTelemetryData {
   float latitude;
   float longitude;
   int32_t altitude_cm;
   uint32_t speed_mkn;
+  int temperature_c;
+  int processor_temperature_c;
+  uint8_t battery_voltage_v_x10;
   uint8_t number_of_sats;
-  uint8_t gps_status; // This is really a boolean but it will take a byte anyway. 
-  // Non-GPS derived values
-  uint8_t temperature_c;
-  uint8_t processor_temperature_c;
-  uint8_t battery_voltage_v; 
+  uint8_t gps_status; 
 };
 
 struct OrionTxData {
   char grid_sq_6char[7]; // 6 Character Grid Square calculated from GPS Lat/Long values.
   int32_t altitude_m; 
   uint32_t speed_kn; 
+  int temperature_c;
+  int processor_temperature_c;
   uint8_t number_of_sats;
   uint8_t gps_status;
-  uint8_t temperature_c;
-  uint8_t processor_temperature_c;
-  uint8_t battery_voltage_v;
+  uint8_t battery_voltage_v_x10;
  // bool gps_3d_fix_ok_bool;
 };
 

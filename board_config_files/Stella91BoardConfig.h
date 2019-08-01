@@ -48,6 +48,21 @@
 // This must be defined if the GPS PPS PIN is connected to D2 or D3, otherwise commented out
 //#define GPS_PPS_ON_D2_OR_D3        //GPS PPS connects to D2 or D3 and thus can use an External Interrupt othwerwise 
 
+// External Temperature Sensor. If one of the following two are DEFINED this sensor data will be used for temperature telemetry
+// otherwise we default to using the internal temperature sensor in the Atmega328p.
+/// 
+//#define DS1820_TEMP_SENSOR_PRESENT  // Dallas Semiconductor DS18020 external One-wire sensor is present
+//#define TMP36_TEMP_SENSOR_PRESENT   // TMP36 - Placeholder for now, not yet supported. 
+
+#if defined (DS1820_TEMP_SENSOR_PRESENT)
+#define ONE_WIRE_BUS A0          // Dallas Temperature One-Wire Sensor change this to match PIN usage
+#endif
+
+// The following two values determine the calibration point for the internal temperature sensor inside the ATmega328p
+// See document AVR122: Calibration of the AvR's Internal Temperature Reference for details on calibration procedure
+#define PROC_TEMP_OFFSET  51.31  // assumes the 273 has already been subtracted from ADC value to convert to degrees C 
+#define PROC_TEMP_GAIN    1.22
+  
 // Comment these out if not using an LED to indicate WSPR TX or GPS Time Synch
 //#define TX_LED_PRESENT           
 //#define SYNC_LED_PRESENT 
@@ -80,13 +95,16 @@
 #define SYNC_LED_PIN            7             // LED on PIN D7 indicates GPS time synchronization. 
 // Note the most Arduino Boards have a built-in LED that can be used for either of the above purposes referred to as LED_BUILTIN
 
-#define ANALOG_PIN_FOR_RNG_SEED  A0              // Pin used to generate seed for Random number generator - must be a free analog pin (unused) 
-
+#define ANALOG_PIN_FOR_RNG_SEED  A1              // Pin used to generate seed for Random number generator - must be a free analog pin (unused) 
+#define Vpwerbus     A3          // ADC input for Vpwrbus for measuring battery voltage
 #define CAL_FREQ_IN_PIN 5        // This must be D5 as it is the external clock iput for Timer1 when it is used as a counter. 
                                  // Otherwise Calibration is not supported for your board.
                                   
 //#define GPS_PPS_PIN 3            // This must be either 2 or 3 (i.e. D2 or D3) to use external interrupts, otherwise you must use a PinChangeInterrupt for PPS 
-#define GPS_PPS_PIN A5         // DL6OW STELLA boards and other U3S Clones use A5/ADC5 (physical pin #28) for PPS. This uses PCINT13       
+#define GPS_PPS_PIN A5            // DL6OW STELLA boards and other U3S Clones use A5/ADC5 (physical pin #28) for PPS. This uses PCINT13   
+
+#define ONE_WIRE_BUS A0          // Dallas Temperature Sensor
+#define Vpwerbus     A3          // ADC input for Vpwrbus for measuring battery voltage
 
 /***********************************************************
    Si5351a Configuration Parameters
@@ -101,7 +119,7 @@
 *  See OrionSi5351_calibration.ino sketch. You may also need to modify SI5351BX_XTALPF
 *  in OrionSi5351.h is you need a crystal load capacitance other that 8 pf.
 ************************************************************************************************************************/
-#define SI5351A_CLK_FREQ_CORRECTION   -6813  // Correction value for Si5351a on DL6OW Stella 9.1 prototype
+#define SI5351A_CLK_FREQ_CORRECTION   -8213  // Correction value for Si5351a on DL6OW Stella 9.1 prototype
 
 #define SI5351BX_XTALPF   3               // 1:6pf  2:8pf  3:10pf -  assuming 10 pF, otherwise change
 

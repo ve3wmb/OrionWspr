@@ -47,6 +47,21 @@
 // This must be defined if the GPS PPS PIN is connected to D2 or D3, otherwise commented out
 //#define GPS_PPS_ON_D2_OR_D3        //GPS PPS connects to D2 or D3 and thus can use an External Interrupt othwerwise 
 
+// External Temperature Sensor. If one of the following two are DEFINED this sensor data will be used for temperature telemetry
+// otherwise we default to using the internal temperature sensor in the Atmega328p.
+/// 
+#define DS1820_TEMP_SENSOR_PRESENT  // Dallas Semiconductor DS18020 external One-wire sensor is present
+//#define TMP36_TEMP_SENSOR_PRESENT   // TMP36 - Placeholder for now, not yet supported. 
+
+#if defined (DS1820_TEMP_SENSOR_PRESENT)
+#define ONE_WIRE_BUS A0          // Dallas Temperature One-Wire Sensor change this to match PIN usage
+#endif
+
+// The following two values determine the calibration point for the internal temperature sensor inside the ATmega328p
+// See document AVR122: Calibration of the AvR's Internal Temperature Reference for details on calibration procedure
+#define PROC_TEMP_OFFSET -51.31  // assumes the 273 has already been subtracted from ADC value to convert to degrees C 
+#define PROC_TEMP_GAIN    1.22
+
 // Comment these out if not using an LED to indicate WSPR TX or GPS Time Synch
 #define TX_LED_PRESENT           
 #define SYNC_LED_PRESENT 
@@ -80,7 +95,7 @@
 // Note the most Arduino Boards have a built-in LED that can be used for either of the above purposes referred to as LED_BUILTIN
 
 #define ANALOG_PIN_FOR_RNG_SEED  A0              // Pin used to generate seed for Random number generator - must be a free analog pin (unused) 
-
+#define Vpwerbus     A3          // ADC input for Vpwrbus for measuring battery voltage
 #define CAL_FREQ_IN_PIN 5        // This must be D5 as it is the external clock iput for Timer1 when it is used as a counter. 
                                  // Otherwise Calibration is not supported for your board.
                                   
