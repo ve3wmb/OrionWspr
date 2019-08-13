@@ -52,8 +52,12 @@
 // External Temperature Sensor. If one of the following two are DEFINED this sensor data will be used for temperature telemetry
 // otherwise we default to using the internal temperature sensor in the Atmega328p.
 /// 
-#define DS1820_TEMP_SENSOR_PRESENT  // Dallas Semiconductor DS18020 external One-wire sensor is present
-//#define TMP36_TEMP_SENSOR_PRESENT   // TMP36 - Placeholder for now, not yet supported. 
+//define DS1820_TEMP_SENSOR_PRESENT  // Dallas Semiconductor DS18020 external One-wire sensor is present
+#define TMP36_TEMP_SENSOR_PRESENT   // TMP36 - Placeholder for now, not yet supported. 
+
+#if defined (TMP36_TEMP_SENSOR_PRESENT)
+#define TMP36_PIN A1            // TMP36 Temperature sensor. Change to match PIN usage.
+#endif
 
 #if defined (DS1820_TEMP_SENSOR_PRESENT)
 #define ONE_WIRE_BUS A0          // Dallas Temperature One-Wire Sensor change this to match PIN usage
@@ -94,7 +98,8 @@ Arduino Hardware Pin Configurations - change these to match your specific hardwa
 
 #define ANALOG_PIN_FOR_RNG_SEED  A2              // Pin used to generate seed for Random number generator - must be a free analog pin (unused)
  
-#define Vpwerbus     A3          // ADC input for Vpwrbus for measuring battery voltage
+#define Vpwerbus     A0          // ADC input for Vpwrbus for measuring battery voltage
+#define VpwerDivider 5.7         // Multiplying factor for ADC voltage divider
  
 #define CAL_FREQ_IN_PIN 5        // This must be D5 as it is the external clock input for Timer1 when it is used as a counter. 
                                  // Otherwise Calibration is not supported for your board.
@@ -104,7 +109,7 @@ Arduino Hardware Pin Configurations - change these to match your specific hardwa
 
 // Enable PIN for GPS VCC (LOW = enabled, HIGH = disabled)
 #ifdef GPS_POWER_DISABLE_SUPPORTED
-	#define GPS_POWER_DISABLE_PIN	5			// Pin D5
+	#define GPS_POWER_DISABLE_PIN	7			// Pin D7
 #endif
 
 // Enable PIN for Si5351a TX VCC (LOW = enabled, HIGH = disabled)

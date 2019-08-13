@@ -16,9 +16,10 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <int.h>
+//#include <int.h>
 #include "OrionXConfig.h"
 #include "OrionBoardConfig.h"
+#include "OrionSerialMonitor.h"
 
 #if defined (DS1820_TEMP_SENSOR_PRESENT)
   #include <OneWire.h>
@@ -40,6 +41,12 @@ int read_DS1820_temperature() {
 }
 #endif // DS1820_TEMP_SENSOR_PRESENT
 
+#if defined (TMP36_TEMP_SENSOR_PRESENT)
+int read_TEMP36_temperature() {
+  return (double)analogRead(TMP36_PIN) / 1024 * 330 - 50;
+}
+#endif
+
 
 int read_voltage_v_x10() {
 
@@ -48,12 +55,19 @@ int read_voltage_v_x10() {
 
   sum = 0;
 
+  analogReference(DEFAULT); // ensure that we are using the default 3.3v voltage reference for ADC
+  
+  // Do a few throw-away reads before the real ones so things can settle down
+  for (i = 0; i < 5; i++) {
+    AdcCount = analogRead(Vpwerbus); // read Vpwerbus
+  }
+   
   // Read the voltage 10 times so we can calculate an average
   for (i = 0; i < 10; i++) {
 
     // Arduino 10bit ADC; 3.3v external AREF each count of 1 = 0.00322265625V
     AdcCount = analogRead(Vpwerbus); // read Vpwerbus
-    Vpower = AdcCount * 0.00322 * 1.33333;
+    Vpower = AdcCount * 0.00322 * VpwerDivider;
     sum = sum + Vpower ;
   }
 
@@ -95,7 +109,6 @@ int read_processor_temperature() {
   // The returned temperature is in degrees Celsius.
   return (((int)temp_c));
 }
-
 
 
 uint8_t encode_temperature (int temperature_c) {
@@ -359,3 +372,94 @@ uint8_t encode_altitude (int altitude_m) {
   }
   return ret_value;
 }
+
+// This function implements the KISS Telemetry scheme proposed by VE3GTC.
+// We use the PWR/dBm field in the WSPR Type 1 message to encode the 5th and 6th characters of the
+// 6 character Maidenehad Grid Square, following the WSPR encoding rules for this field.
+// The 6 Character Grid Square is calculated from the GPS supplied Latitude and Longitude.
+// A four character grid square is 1 degree latitude by 2 degrees longitude or approximately 60 nautical miles
+// by 120 nautical miles respectively (at the equator). This scheme increases resolution to 1/3 of degree
+// (i.e about 20 nautical miles). We encode the 5th and 6th characters of the 6 character Grid Locator into the
+// Primary Type 1 message in the PWR (dBm) field,as follows :
+//
+// Sub-square Latitude (character #6)
+
+//  a b c d e f g                encodes as : 0
+//  h i j k l m n o p q          encodes as : 3
+//  r s t u v w x                encodes as : 7
+
+// Subsquare Longitude (character #5)
+
+//  a b c             encodes as : 0 (space)
+//  d e f g h i       encodes as : 1
+//  j k l             encodes as : 2
+//  m n o             encodes as : 3
+//  p q r s t u       encodes as : 4
+//  v w x             encodes as : 5
+//
+// So FN25di would have FN25 encoded is the GRID field and 'DI' encoded in the PWR/dBm field as 13.
+//
+uint8_t encode_gridloc_char5_char6(char gridsq_char5, char gridsq_char6) {
+
+  uint8_t latitude = 0;
+  uint8_t longitude = 0;
+
+  // Encode the 5th character of the 6 char Grid locator first, this is the longitude portion of the sub-square
+  switch (gridsq_char5) {
+
+    case 'A' : case 'B' : case 'C' :
+      longitude = 0;
+      break;
+
+    case 'D' : case 'E' : case 'F' : case 'G' : case 'H' : case 'I' :
+      longitude = 1;
+      break;
+
+    case 'J' : case 'K' : case 'L' :
+      longitude = 2;
+      break;
+
+    case 'M' : case 'N' : case 'O' :
+      longitude = 3;
+      break;
+
+    case 'P' : case 'Q' : case 'R' : case 'S' : case 'T' : case 'U' :
+      longitude = 4;
+      break;
+
+    case 'V' : case 'W' : case 'X' :
+      longitude = 5;
+      break;
+
+    default :
+      // We should never get here so Swerr
+      swerr(10, gridsq_char5);
+      break;
+  } // end switch on 5th character of Grid Locator
+
+  longitude = longitude * 10; // This shifts the longitude value one decimal place to the left (i.e a 1 becomes 10).
+
+  // Now we encode the 6th character (array indexing starts at 0) of the 6 character Grid locator, which represents the latitude portion of the sub-square
+  switch (gridsq_char6) {
+
+    case 'A' : case 'B' : case 'C' : case 'D' : case 'E' : case 'F' : case 'G' :
+      latitude = 0;
+      break;
+
+    case 'H' : case 'I' : case 'J' : case 'K' : case 'L' : case 'M' : case 'N' : case 'O' : case 'P' : case 'Q' :
+      latitude = 3;
+      break;
+
+    case 'R' : case 'S' : case 'T' : case 'U' : case 'V' : case 'W' : case 'X' :
+      latitude = 7;
+      break;
+
+    default :
+      // We should never get here so Swerr
+      swerr(11, gridsq_char6);
+      break;
+  }
+
+  return (longitude + latitude);
+
+} // end encode_gridloc_char5_char6

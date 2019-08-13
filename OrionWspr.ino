@@ -128,9 +128,7 @@ unsigned long g_beacon_freq_hz = FIXED_BEACON_FREQ_HZ;      // The Beacon Freque
 // Raw Telemetry data types define in OrionTelemetry.h
 // This contains the last validated Raw telemetry for use during GPS LOS (i.e. we use the last valid data if current data is missing)
 struct OrionTelemetryData g_last_valid_telemetry = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-struct OrionTelemetryData g_orion_current_telemetry {
-  0, 0, 0, 0, 0, 0, 0, 0, 0
-};
+struct OrionTelemetryData g_orion_current_telemetry {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // This differs from OrionTelemetryData mostly in that the values are reformatted with the correct units (i.e altitude in metres vs cm etc.)
 // It is used to populate the global values below prior to encoding the WSPR message for TX
@@ -173,7 +171,6 @@ unsigned long get_tx_frequency() {
   }
 
 }
-
 
 // -- Telemetry -------
 
@@ -277,10 +274,16 @@ void get_telemetry_data() {
   // Get the remaining non-GPS derived telemetry values.
   // Since these are not reliant on the GPS we assume that we will always be able to get valid values for these.
 #if defined (DS1820_TEMP_SENSOR_PRESENT)
-  g_orion_current_telemetry.temperature_c =  read_DS1820_temperature();
+  g_orion_current_telemetry.temperature_c = read_DS1820_temperature();
+#elif defined (TMP36_TEMP_SENSOR_PRESENT)
+  g_orion_current_telemetry.temperature_c = read_TEMP36_temperature();
 #else
+  // Note that if neither of the supported external temperature sensors are present 
+  // we will encode the temperature later into the Pwr/dBm field using the internal processor temp
   g_orion_current_telemetry.temperature_c = 0;
 #endif
+
+  // Note that if neither of the supported external temperature sensors are present we will encode the temperature later into the Pwr/dBm field using the internal processor temp
   g_orion_current_telemetry.processor_temperature_c = read_processor_temperature();
   g_orion_current_telemetry.battery_voltage_v_x10 = read_voltage_v_x10();
 
@@ -312,99 +315,6 @@ void set_tx_data() {
   orion_log_telemetry (&g_tx_data);  // Pass a pointer to the g_tx_data structure
 }
 
-// This function implements the KISS Telemetry scheme proposed by VE3GTC.
-// We use the PWR/dBm field in the WSPR Type 1 message to encode the 5th and 6th characters of the
-// 6 character Maidenehad Grid Square, following the WSPR encoding rules for this field.
-// The 6 Character Grid Square is calculated from the GPS supplied Latitude and Longitude.
-// A four character grid square is 1 degree latitude by 2 degrees longitude or approximately 60 nautical miles
-// by 120 nautical miles respectively (at the equator). This scheme increases resolution to 1/3 of degree
-// (i.e about 20 nautical miles). We encode the 5th and 6th characters of the 6 character Grid Locator into the
-// Primary Type 1 message in the PWR (dBm) field,as follows :
-//
-// Sub-square Latitude (character #6)
-
-//  a b c d e f g                encodes as : 0
-//  h i j k l m n o p q          encodes as : 3
-//  r s t u v w x                encodes as : 7
-
-// Subsquare Longitude (character #5)
-
-//  a b c             encodes as : 0 (space)
-//  d e f g h i       encodes as : 1
-//  j k l             encodes as : 2
-//  m n o             encodes as : 3
-//  p q r s t u       encodes as : 4
-//  v w x             encodes as : 5
-//
-// So FN25di would have FN25 encoded is the GRID field and 'DI' encoded in the PWR/dBm field as 13.
-//
-
-uint8_t encode_gridloc_char5_char6() {
-
-  uint8_t latitude = 0;
-  uint8_t longitude = 0;
-
-  // Encode the 5th character of the 6 char Grid locator first, this is the longitude portion of the sub-square
-  switch (g_tx_data.grid_sq_6char[4]) {
-
-    case 'A' : case 'B' : case 'C' :
-      longitude = 0;
-      break;
-
-    case 'D' : case 'E' : case 'F' : case 'G' : case 'H' : case 'I' :
-      longitude = 1;
-      break;
-
-    case 'J' : case 'K' : case 'L' :
-      longitude = 2;
-      break;
-
-    case 'M' : case 'N' : case 'O' :
-      longitude = 3;
-      break;
-
-    case 'P' : case 'Q' : case 'R' : case 'S' : case 'T' : case 'U' :
-      longitude = 4;
-      break;
-
-    case 'V' : case 'W' : case 'X' :
-      longitude = 5;
-      break;
-
-    default :
-      // We should never get here so Swerr
-      swerr(10, g_tx_data.grid_sq_6char[4]);
-      break;
-  } // end switch on 5th character of Grid Locator
-
-  longitude = longitude * 10; // This shifts the longitude value one decimal place to the left (i.e a 1 becomes 10).
-
-  // Now we encode the 6th character (array indexing starts at 0) of the 6 character Grid locator, which represents the latitude portion of the sub-square
-  switch (g_tx_data.grid_sq_6char[5]) {
-
-    case 'A' : case 'B' : case 'C' : case 'D' : case 'E' : case 'F' : case 'G' :
-      latitude = 0;
-      break;
-
-    case 'H' : case 'I' : case 'J' : case 'K' : case 'L' : case 'M' : case 'N' : case 'O' : case 'P' : case 'Q' :
-      latitude = 3;
-      break;
-
-    case 'R' : case 'S' : case 'T' : case 'U' : case 'V' : case 'W' : case 'X' :
-      latitude = 7;
-      break;
-
-    default :
-      // We should never get here so Swerr
-      swerr(11, g_tx_data.grid_sq_6char[5]);
-      break;
-  }
-
-  return (longitude + latitude);
-
-} // end encode_gridloc_char5_char6
-
-
 void prepare_telemetry()
 {
   get_telemetry_data();
@@ -412,12 +322,9 @@ void prepare_telemetry()
   set_tx_data();
 
   // We encode the 5th and 6th characters of the Grid square into the PWR/dBm field of the WSPR message.
-  g_tx_pwr_dbm = encode_gridloc_char5_char6();
+  g_tx_pwr_dbm = encode_gridloc_char5_char6(g_tx_data.grid_sq_6char[4], g_tx_data.grid_sq_6char[5]);
 
 } //end prepare_telemetry
-
-
-
 
 void encode_and_tx_wspr_msg() {
   /**************************************************************************

@@ -278,12 +278,18 @@ void log_calibration(uint64_t sampled_freq, int32_t o_cal_factor, int32_t n_cal_
 /**********************
 /* Serial Monitor code 
 /**********************/
+void print_board_and_version(){
+  debugSerial.print(F("Orion firmware version: "));
+  debugSerial.print(ORION_FW_VERSION);
+  debugSerial.println(BOARDNAME);
+}
 
 void serial_monitor_begin(){
   
   // Start software serial port 
   debugSerial.begin(MONITOR_SERIAL_BAUD);
-  debugSerial.println(F("Initialising Orion Serial Monitor...."));
+  debugSerial.print(F("Initialising Orion Serial Monitor.... "));
+  print_board_and_version();
   println_cmd_list();
   print_monitor_prompt();
   delay(500);
@@ -306,9 +312,7 @@ void serial_monitor_interface(){
       
       case 'v' :
         flush_input();
-        debugSerial.print(F("Orion firmware version: "));
-        debugSerial.print(ORION_FW_VERSION);
-        debugSerial.println(BOARDNAME);
+        print_board_and_version();
         break;
 
        case 'd' : // toggle debug flag

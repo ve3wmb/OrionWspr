@@ -1,13 +1,13 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.17a
+Consider this to be Alpha Software. Current version is: v0.18a
  
 
 Current compile stats are:
 
-Sketch uses 24216 bytes or 78% (previously 69%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1272 bytes or 62% (previously 51%) of dynamic memory, leaving 776 bytes for local variables. 
+Sketch uses 24216 bytes or 74% (previously 78%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1226 bytes or 59% (previously 62%) of dynamic memory, leaving 882 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -23,9 +23,12 @@ a=alpha b=beta, r=release
 
 
 Changelog : 
-v017a - Phase two of Telemetry. This implements the VE3GTC KISS Telemetry scheme, encoding data into the WSPR message Pwr/dBm field.
+v0.18a - Phase III of Telemetry. Minor Telemetry code cleanup and changes to allow use of TM36 temperature sensor. 
+
+v0.17a - Phase two of Telemetry. This implements the VE3GTC KISS Telemetry scheme, encoding data into the WSPR message Pwr/dBm field.
 It includes Orion State Machine and scheduler changes to enable the transmission of a secondary WSPR message carrying telemetry at 
 hh:02, hh:12, hh:22, hh:32, hh:42 and hh:52. 
+
 v0.16a - Phase one of Telemetry. This update introduces some Telemetry Data structures and includes the encoding of the 5th and 6th 
 Maidenhead Grid Square characters into the PWR/dBm field of the primary WSPR message using a scheme developed by VE3GTC. 
 

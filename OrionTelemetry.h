@@ -20,9 +20,11 @@
 */
 int read_voltage_v_x10 ();
 int read_DS1820_temperature();
+int read_TEMP36_temperature();
 int read_processor_temperature();
 uint8_t encode_temperature (int temperature_c);
 uint8_t encode_voltage (int voltage_v_x10);
 uint8_t encode_altitude (int altitude_m);
+uint8_t encode_gridloc_char5_char6(char gridsq_char5, char gridsq_char6);
 
 #endif
