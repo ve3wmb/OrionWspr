@@ -301,6 +301,15 @@ static void flush_input(void){
     debugSerial.read();
 }
 
+void log_time_set(){
+  // If info logs are turned on then log the timeset
+  if  (g_info_log_on_off == OFF) return;
+  
+  print_date_time();
+  debugSerial.println(F(" ** INFO: System Time set from GPS ** "));
+  print_monitor_prompt();  
+}
+
 void serial_monitor_interface(){
  
   if (debugSerial.available() > 0){

@@ -96,8 +96,8 @@
 #define GPS_PORT_NAME "NeoSWSerial"
 #endif
 
-#define GPS_STATUS_STD 4  //This needs to match the definition in NeoGPS for STATUS_STD 
-
+#define GPS_STATUS_STD 4         //This needs to match the definition in NeoGPS for STATUS_STD 
+#define LAST_MIN_SEC_NOT_SET 61  // For initializing g_last_second and g_last_minute
 
 // WSPR specific defines. DO NOT CHANGE THESE VALUES, EVER!
 #define TONE_SPACING            146                 // ~1.46 Hz
@@ -121,7 +121,8 @@ NeoSWSerial gpsPort(SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN);  // RX, TX
 
 // We initialize this to 61 so the first time through the scheduler we can't possibly match the current second
 // This forces the scheduler to run on its very first call.
-byte g_last_second = 61;
+byte g_last_second = LAST_MIN_SEC_NOT_SET;
+byte g_last_minute = LAST_MIN_SEC_NOT_SET; 
 
 unsigned long g_beacon_freq_hz = FIXED_BEACON_FREQ_HZ;      // The Beacon Frequency in Hz
 
@@ -393,7 +394,7 @@ void get_gps_fix_and_time() {
       // If we have a valid fix, set the Time on the Arduino if needed
       if ( timeStatus() == timeNotSet ) { // System date/time isn't set so set it
         setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
-        g_chrono.start();
+        log_time_set(); // Log it.
 
         // If we are using the SYNC_LED
 #if defined (SYNC_LED_PRESENT)
@@ -403,20 +404,6 @@ void get_gps_fix_and_time() {
           digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off
 #endif
       }
-
-
-      if (g_chrono.hasPassed(TIME_SET_INTERVAL_MS, true)) { // When the time set interval has passed, restart the Chronometer set system time again from GPS
-        setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
-
-        // If we are using the SYNC_LED
-#if defined (SYNC_LED_PRESENT)
-        if (timeStatus() == timeSet)
-          digitalWrite(SYNC_LED_PIN, HIGH); // Turn LED on if the time is synced
-        else
-          digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off
-#endif
-      }
-
 
     } // end if fix.valid.time
   } // end while
@@ -464,6 +451,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
       // Restore Timer1 interrupt for WSPR Transmission
       wspr_tx_interrupt_setup();
       returned_action = orion_state_machine(CALIBRATION_DONE_EV);
+      
       break;
 
     case STARTUP_CALIBRATION_ACTION :
@@ -482,8 +470,8 @@ OrionAction process_orion_sm_action (OrionAction action) {
 
 
     case GET_TELEMETRY_ACTION :
-      prepare_telemetry();
 
+      prepare_telemetry();
       // Tell the Orion state machine that we have the telemetry
       returned_action = orion_state_machine(TELEMETRY_DONE_EV);
       break;
@@ -500,7 +488,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
       // Encode and transmit the Primary WSPR Message
       encode_and_tx_wspr_msg();
 
-      orion_log_wspr_tx(PRIMARY_WSPR_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
+      orion_log_wspr_tx(PRIMARY_WSPR_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a lo
 
       // Tell the Orion state machine that we are done tranmitting the Primary WSPR message and update the current_action
       returned_action = orion_state_machine(PRIMARY_WSPR_TX_DONE_EV);
@@ -578,6 +566,7 @@ OrionAction orion_scheduler() {
   byte Second; // The current second
   byte Minute; // The current minute
   byte i;
+  
   OrionAction returned_action = NO_ACTION;
 
 
@@ -586,17 +575,17 @@ OrionAction orion_scheduler() {
     // The scheduler will get called many times per second but we only want it to run once per second,
     // otherwise we might generate multiples of the same time event on these extra passes through the scheduler.
     Second = second();
+    Minute = minute();
 
-    // If we are on the same second as the last time we went through here then we bail-out with NO_ACTION returned.
+    // If we are on the same minute and second as the last time we went through here then we bail-out with NO_ACTION returned.
     // This prevents us from sending time events more than once as our time resolution is only one second but we might
     // make it back here in less than 1 second.
-    if (Second == g_last_second) return returned_action;
+    if ((Second == g_last_second) && (Minute == g_last_minute)) return returned_action; // bale out to prevent multiple time events
 
     // If the current second is different from the last time, then it has been updated so we run.
-
     g_last_second = Second; // Remember what second we are currently on for the next time the scheduler is called
-
-    Minute = minute();
+    g_last_minute = Minute; 
+   
 
     if (Second == 1) { // To simplify things we trigger everything at the one second mark if we are on the correct minute
 
@@ -628,7 +617,19 @@ OrionAction orion_scheduler() {
         case 39 :
         case 49 :
         case 59 :
-          // If are one minute prior to a scheduled Beacon Transmission, trigger collection of new telemetry info
+          // If are one minute prior to a scheduled Beacon Transmission, trigger collection of new telemetry info, but first reset the system time from the GPS.
+          // We set the time here to try to minimize the delta between getting the time fix and setting the Orion system clock. This also lets us
+          // synchronize the regular setting of the clock with the beacon TX schedule so there is no overlap (resulting in lost events) and we have accurate
+          // clock time for each TX cycle. 
+          if (fix.valid.time) {
+            setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
+            log_time_set(); // Log it.
+            
+            // This is a very minor kludge to prevent what seems to be a mini-time-warp, due to
+            // the re-setting of the time and resulting in the generation of multiple TELEMETRY_TIME_EVs.
+            g_last_second = 1;
+            
+          }
           returned_action =  (orion_state_machine(TELEMETRY_TIME_EV));
           break;
 
@@ -771,12 +772,11 @@ void loop() {
     g_current_action = process_orion_sm_action(g_current_action);
   }
 
-  // Get the current GPS fix and update the system clock time if needed
-  get_gps_fix_and_time();
-
-
-  // Process serial monitor input
+// Process serial monitor input
   serial_monitor_interface();
+  
+  // Get the current GPS fix and update the system clock time if needed, don't force a clock sync
+  get_gps_fix_and_time();
 
   // Call the scheduler to determine if it is time for any action
   g_current_action = orion_scheduler();

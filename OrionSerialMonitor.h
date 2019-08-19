@@ -36,4 +36,5 @@ bool is_selfcalibration_on();
 void log_debug_Timer1_info(byte i, int ofCount, int t_count);
 void log_calibration(uint64_t sampled_freq, int32_t o_cal_factor, int32_t n_cal_factor );
 void log_calibration_start(); 
+void log_time_set(); 
 #endif

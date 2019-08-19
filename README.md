@@ -1,7 +1,7 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.18a
+Consider this to be Alpha Software. Current version is: v0.19a
  
 
 Current compile stats are:
@@ -23,6 +23,9 @@ a=alpha b=beta, r=release
 
 
 Changelog : 
+
+v0.19a - Fix for sporadic lost time events.
+
 v0.18a - Phase III of Telemetry. Minor Telemetry code cleanup and changes to allow use of TM36 temperature sensor. 
 
 v0.17a - Phase two of Telemetry. This implements the VE3GTC KISS Telemetry scheme, encoding data into the WSPR message Pwr/dBm field.
