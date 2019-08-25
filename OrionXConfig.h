@@ -22,10 +22,11 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 
-#define ORION_FW_VERSION "v0.19a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+#define ORION_FW_VERSION "v0.20a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
                                   // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
                                   // a = alpha b=beta, r=release
-                                  
+#define OFF false
+#define ON true                                  
 /***********************************************************
    USER SPECIFIED PARAMETERS FOR WSPR
  ***********************************************************/
@@ -38,10 +39,13 @@
 // Configuration parameters for Primary WSPR Message (i.e. Callsign, 4 character grid square and power out in dBm)
 #define BEACON_CALLSIGN_6CHAR   "VE3WMB"      // Your beacon Callsign, maximum of 6 characters
 #define BEACON_GRID_SQ_4CHAR    "AA01"        // Your hardcoded 4 character Grid Square - this will be overwritten with GPS derived Grid
-#define BEACON_TX_PWR_DBM          7          // Beacon Power Output in dBm (5mW = 7dBm)
+#define BEACON_TX_PWR_DBM          7          // Beacon Power Output in dBm (5mW = 7dBm)       
 
-// This defines how often we reset the Arduino Clock to the current GPS time 
-#define TIME_SET_INTERVAL_MS   600000         // 60,000 ms / minute x 10 = 10 minutes         
+#define OPERATING_VOLTAGE_Vx10       32         // This is the sampled VCC value x 10  required to initiate beacon operation (i.e 33 means 3.3v) 
+#define SHUTDOWN_VOLTAGE_Vx10        30         // Sampled VCC value x 10. Readings below this value will initiate the transition to SHUTDOWN_ST
+
+//#define OPERATING_VOLTAGE_GUARD_TMO_MS 3600000  // Guard Timeout value for 60,000 ms / minute x 60 = 60 minutes aka 1 hour
+#define OPERATING_VOLTAGE_GUARD_TMO_MS 300000    // Guard Timeout value for 60,000 ms / minute x 5 = 5 minutes 
 
 // Type Definitions
 

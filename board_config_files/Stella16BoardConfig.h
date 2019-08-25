@@ -149,11 +149,10 @@ Arduino 10bit ADC; each count of 1 = 0.004654V
   #define ONE_WIRE_BUS A0          // Dallas Temperature One-Wire Sensor change this to match PIN usage
 #endif
 
-// The following two values determine the calibration point for the internal temperature sensor inside the ATmega328p
-// See document AVR122: Calibration of the AvR's Internal Temperature Reference for details on calibration procedure
-#define PROC_TEMP_OFFSET -51.31  // assumes the 273 has already been subtracted from ADC value to convert to degrees C 
-#define PROC_TEMP_GAIN    1.22
-  
+#define VCC_SAMPLING_SUPPORTED true  // Board has the capabilty to sample VCC on Vpwerbus using VpwerDivider as a multiplying factor
+#define Vpwerbus     A3          	// ADC input for Vpwrbus for measuring battery voltage
+#define VpwerDivider 1.3333       	// Multiplying factor for ADC voltage divider (5.7 for K1FM V1.3)
+
 // Comment these out if not using an LED to indicate WSPR TX or GPS Time Synch
 //#define TX_LED_PRESENT           
 //#define SYNC_LED_PRESENT 
@@ -194,8 +193,7 @@ Arduino 10bit ADC; each count of 1 = 0.004654V
 //#define GPS_PPS_PIN 3            // This must be either 2 or 3 (i.e. D2 or D3) to use external interrupts, otherwise you must use a PinChangeInterrupt for PPS 
 #define GPS_PPS_PIN A5            // DL6OW STELLA boards and other U3S Clones use A5/ADC5 (physical pin #28) for PPS. This uses PCINT13   
 
-#define Vpwerbus     A3          // ADC input for Vpwrbus for measuring battery voltage
-#define VpwerDivider 1.3333       // Multiplying factor for ADC voltage divider (5.7 for K1FM V1.3)
+
 
 /***********************************************************
    Si5351a Configuration Parameters

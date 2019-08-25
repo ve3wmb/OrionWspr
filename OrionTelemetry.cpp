@@ -53,7 +53,9 @@ int read_voltage_v_x10() {
   int AdcCount, i, voltage_v_x10;
   float Vpower, sum;
 
-  sum = 0;
+if (VCC_SAMPLING_SUPPORTED == true) {
+
+  sum = 0; 
 
   analogReference(DEFAULT); // ensure that we are using the default 3.3v voltage reference for ADC
   
@@ -75,8 +77,19 @@ int read_voltage_v_x10() {
 
   // Shift the voltage one decimal place to the left and convert to an int
   voltage_v_x10 = (int) (Vpower * 10); // i.e. This converts 3.3333 volt reading to 33 representing 3.3 v
+}
+  
+else { // VCC_SAMPLING_SUPPORTED == false
 
-  return voltage_v_x10;
+  // Just return the defined OPERATING_VOLTAGE_Vx10 value
+  voltage_v_x10 = OPERATING_VOLTAGE_Vx10;
+  
+}
+   
+
+
+return voltage_v_x10;
+ 
 }
 
 int read_processor_temperature() {

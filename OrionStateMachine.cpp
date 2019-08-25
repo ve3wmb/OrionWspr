@@ -60,29 +60,16 @@ OrionAction orion_state_machine(OrionEvent event) {
 
   switch (g_current_orion_state) {
 
-    case  POWERUP_ST : { //executing setup()
-
-        if (event == SETUP_DONE_EV) {
-
-          if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && (is_selfcalibration_on())) {
-            // Done setup now do intial calibration
-            orion_sm_change_state(CALIBRATE_ST);
-            next_action = STARTUP_CALIBRATION_ACTION;
-          }
-          else {
-            // If we don't support self Calibration then skip to telemetry
-            orion_sm_change_state(WAIT_TELEMETRY_ST);
-            
-            // Since we can't rely on the post-calibration cleanup to setup and 
-            // start the WS TX Interrupt we trigger it using an action. 
-            next_action = WSPR_TX_INT_SETUP_ACTION;
-          }
+    case  POWERUP_ST :  //executing setup()
+              
+        if (event == WAIT_VOLTAGE_EV){
+          orion_sm_change_state(WAIT_OP_VOLTAGE_ST);
+          next_action = OP_VOLT_WAITLOOP_ACTION;
         }
-        else
+        else 
           swerr(1, event); // This event is not supported in this state
         
-      }
-      break;
+        break;
 
     case  CALIBRATE_ST :  // calibrating Si5351a clock
       if (event == CALIBRATION_DONE_EV ) {
@@ -114,7 +101,11 @@ OrionAction orion_state_machine(OrionEvent event) {
     case  TELEMETRY_ST :  // done gathering/calculating telemetry data
       if (event == TELEMETRY_DONE_EV) {
         orion_sm_change_state(WAIT_TX_PRIMARY_WSPR_ST);
-        next_action = NO_ACTION;;
+        next_action = NO_ACTION;
+      }
+      else if (event == LOW_VOLTAGE_EV) { // Measure VCC below operating threshhold
+        orion_sm_change_state(SHUTDOWN_ST);
+        next_action = INITIATE_SHUTDOWN_ACTION;
       }
       else
         swerr(3, event); // This event is not supported in this state
@@ -201,7 +192,28 @@ OrionAction orion_state_machine(OrionEvent event) {
           swerr(5, event); // This event is not supported in this state
         break;
 
+    case WAIT_OP_VOLTAGE_ST : // Waiting to reach operational voltage 
+       if (event == SETUP_DONE_EV) {
 
+          if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && (is_selfcalibration_on())) {
+            // Done setup now do intial calibration
+            orion_sm_change_state(CALIBRATE_ST);
+            next_action = STARTUP_CALIBRATION_ACTION;
+          }
+          else {
+            // If we don't support self Calibration then skip to telemetry
+            orion_sm_change_state(WAIT_TELEMETRY_ST);
+            
+            // Since we can't rely on the post-calibration cleanup to setup and 
+            // start the WS TX Interrupt we trigger it using an action. 
+            next_action = WSPR_TX_INT_SETUP_ACTION;
+          }
+          
+        } // SETUP_DONE_EV 
+        else
+          swerr(15, event);
+        break;
+      
     default : 
         swerr(6, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.
         break;

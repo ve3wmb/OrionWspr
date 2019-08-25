@@ -109,9 +109,10 @@ JTEncode jtencode;
 // GPS related
 static NMEAGPS gps;
 static gps_fix fix;
+bool gps_power_state = OFF;
 
 //Time related
-LightChrono g_chrono;
+//LightChrono g_chrono;
 
 // If we are using software serial to talk to the GPS then we need to create an instance of NeoSWSerial and
 // provide the RX and TX Pin numbers.
@@ -122,14 +123,16 @@ NeoSWSerial gpsPort(SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN);  // RX, TX
 // We initialize this to 61 so the first time through the scheduler we can't possibly match the current second
 // This forces the scheduler to run on its very first call.
 byte g_last_second = LAST_MIN_SEC_NOT_SET;
-byte g_last_minute = LAST_MIN_SEC_NOT_SET; 
+byte g_last_minute = LAST_MIN_SEC_NOT_SET;
 
 unsigned long g_beacon_freq_hz = FIXED_BEACON_FREQ_HZ;      // The Beacon Frequency in Hz
 
 // Raw Telemetry data types define in OrionTelemetry.h
 // This contains the last validated Raw telemetry for use during GPS LOS (i.e. we use the last valid data if current data is missing)
 struct OrionTelemetryData g_last_valid_telemetry = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-struct OrionTelemetryData g_orion_current_telemetry {0, 0, 0, 0, 0, 0, 0, 0, 0};
+struct OrionTelemetryData g_orion_current_telemetry {
+  0, 0, 0, 0, 0, 0, 0, 0, 0
+};
 
 // This differs from OrionTelemetryData mostly in that the values are reformatted with the correct units (i.e altitude in metres vs cm etc.)
 // It is used to populate the global values below prior to encoding the WSPR message for TX
@@ -279,7 +282,7 @@ void get_telemetry_data() {
 #elif defined (TMP36_TEMP_SENSOR_PRESENT)
   g_orion_current_telemetry.temperature_c = read_TEMP36_temperature();
 #else
-  // Note that if neither of the supported external temperature sensors are present 
+  // Note that if neither of the supported external temperature sensors are present
   // we will encode the temperature later into the Pwr/dBm field using the internal processor temp
   g_orion_current_telemetry.temperature_c = 0;
 #endif
@@ -411,6 +414,87 @@ void get_gps_fix_and_time() {
 }  // end get_gps_fix_and_time()
 
 
+bool low_voltage_shutdown_check() {
+  if  (g_tx_data.battery_voltage_v_x10 < SHUTDOWN_VOLTAGE_Vx10)
+    return true;
+  else
+    return false;
+}
+
+void shutdown_beacon_operation() { // Called on the reception of an INITIATE_SHUTDOWN_ACTION
+
+  // Turn off all of the Si5351 clocks
+  si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF);
+  si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
+  si5351bx_enable_clk(SI5351A_CAL_CLK_NUM, SI5351_CLK_OFF);
+
+  log_shutdown(g_tx_data.battery_voltage_v_x10); // Log the shutdown
+
+  // Cut power to GPS and SI5351 if the board supports it
+
+  // Ensure that GPS is powered down if power disable feature is supported
+#if defined(GPS_POWER_DISABLE_SUPPORTED)
+  digitalWrite(GPS_POWER_DISABLE_PIN, HIGH); // Powered Down
+#endif
+
+  // Ensure that Si5351a is powered down if power disable feature supported
+#if defined(SI5351_POWER_DISABLE_SUPPORTED)
+  digitalWrite(TX_POWER_DISABLE_PIN, HIGH); // Powered down
+#endif
+
+  // This causes the beacon to go into an infinite loop
+  // Eventually we will reach the drop-out voltage for the regulator and the processor will lose power
+  // Operation will resume on powerup after the battery charges sufficiently and the processor receives 
+  // a POR (Power On Reset).
+  while (true) delay (1000);
+
+}
+
+bool operating_voltage_wait() {
+  LightChrono volt_loop_guard_tmr; 
+  
+  volt_loop_guard_tmr.start(); // Start a virtual guard time to ensure that we don't get stuck waiting forever on VCC to reach operating voltage
+   
+  // Loop until the measured VCC value is within operating range or the guard timer expires (call me paranoid but I don't like looping forever)
+  while(!volt_loop_guard_tmr.hasPassed(OPERATING_VOLTAGE_GUARD_TMO_MS)){ // Loop for a maximum of OPERATING_VOLTAGE_GUARD_TMO_MS
+    delay(180000); // dealy 3 minutes for now, replace with code to sleep the processor using the LowPower.h library
+    
+    if (read_voltage_v_x10() >= OPERATING_VOLTAGE_Vx10) return true;  // Operating voltage achieved     
+  }
+  
+  return false; // volt_loop_guard_tmr timed out  
+} // end operating_voltage_wait
+
+
+void setup_si5351_and_gps() {
+     // Ensure that GPS is powered up
+#if defined(GPS_POWER_DISABLE_SUPPORTED)
+    digitalWrite(GPS_POWER_DISABLE_PIN, LOW); // Powered UP
+    delay(500);
+#endif
+
+    // Ensure that Si5351a is powered up
+#if defined(SI5351_POWER_DISABLE_SUPPORTED)
+    digitalWrite(TX_POWER_DISABLE_PIN, LOW); // Powered UP
+    delay(500);
+#endif
+
+    // Start Hardware serial communications with the GPS
+    gps_power_state = ON;
+    gpsPort.begin(GPS_SERIAL_BAUD);
+
+    // Initialize the Si5351
+    si5351bx_init();
+
+    // Setup WSPR TX output
+    si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL));
+    si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF); // Disable the TX clock initially
+
+    // Set PARK CLK Output - Note that we leave SI5351A_PARK_CLK_NUM running at 108 Mhz to keep the SI5351 temperature more constant
+    // This minimizes thermal induced drift during WSPR transmissions. The idea is borrowed from G0UPL's PARK feature on the QRP Labs U3S
+    si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL)); // Turn on Park Clock
+      
+}
 
 OrionAction process_orion_sm_action (OrionAction action) {
   /****************************************************************************************************
@@ -451,7 +535,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
       // Restore Timer1 interrupt for WSPR Transmission
       wspr_tx_interrupt_setup();
       returned_action = orion_state_machine(CALIBRATION_DONE_EV);
-      
+
       break;
 
     case STARTUP_CALIBRATION_ACTION :
@@ -473,7 +557,13 @@ OrionAction process_orion_sm_action (OrionAction action) {
 
       prepare_telemetry();
       // Tell the Orion state machine that we have the telemetry
-      returned_action = orion_state_machine(TELEMETRY_DONE_EV);
+
+      // We check to see if VCC is less than the minimum voltage and initiate controlled shutdown if that is the case.
+      if (low_voltage_shutdown_check() == true)
+        returned_action = orion_state_machine(LOW_VOLTAGE_EV);
+      else
+        returned_action = orion_state_machine(TELEMETRY_DONE_EV);
+
       break;
 
 
@@ -483,7 +573,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
       // g_tx_pwr_dbm = encode_gridloc_char5_char6();
       // Note that this is actually done as part of the Telemetry gathering so no need to redo it.
       // It is the same story for :
-      //  g_beacon_freq_hz = get_tx_frequency(); .. this is already covered for the Primary Msg in the Telemetry Phase. 
+      //  g_beacon_freq_hz = get_tx_frequency(); .. this is already covered for the Primary Msg in the Telemetry Phase.
 
       // Encode and transmit the Primary WSPR Message
       encode_and_tx_wspr_msg();
@@ -501,10 +591,10 @@ OrionAction process_orion_sm_action (OrionAction action) {
 
       // At  hh:02, hh:22, hh:42 encode and transmit the Secondary WSPR Message with altitude encoded into the pwr/dBm field
       g_tx_pwr_dbm = encode_altitude(g_tx_data.altitude_m);
-      
+
       // Set the transmit frequency. This will ensure that QRM Avoidance is utilized for Telemetry Messages as well (i.e different TX frequency than Primary WSPR Msg)
       g_beacon_freq_hz = get_tx_frequency();
-      
+
       encode_and_tx_wspr_msg();
       orion_log_wspr_tx(ALTITUDE_TELEM_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
 
@@ -516,11 +606,11 @@ OrionAction process_orion_sm_action (OrionAction action) {
     case TX_WSPR_MIN52_ACTION :  //  -  TX voltage Telemetry
 
       // At hh:12, hh:22, hh:52 encode and transmit the Secondary WSPR Message with voltage encoded into the pwr/dBm field
-      g_tx_pwr_dbm = encode_voltage(g_tx_data.battery_voltage_v_x10); 
+      g_tx_pwr_dbm = encode_voltage(g_tx_data.battery_voltage_v_x10);
 
       // Set the transmit frequency. This will ensure that QRM Avoidance is utilized for Telemetry Messages as well (i.e different TX frequency than Primary WSPR Msg)
       g_beacon_freq_hz = get_tx_frequency();
-      
+
       encode_and_tx_wspr_msg();
       orion_log_wspr_tx(VOLTAGE_TELEM_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
 
@@ -538,7 +628,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
 #endif
       // Set the transmit frequency. This will ensure that QRM Avoidance is utilized for Telemetry Messages as well (i.e different TX frequency than Primary WSPR Msg)
       g_beacon_freq_hz = get_tx_frequency();
-      
+
       encode_and_tx_wspr_msg();
       orion_log_wspr_tx(TEMPERATURE_TELEM_MSG, g_tx_data.grid_sq_6char, g_beacon_freq_hz, g_tx_pwr_dbm); // If TX Logging is enabled then ouput a log
 
@@ -546,6 +636,23 @@ OrionAction process_orion_sm_action (OrionAction action) {
       returned_action = orion_state_machine(SECONDARY_WSPR_TX_DONE_EV);
       break;
 
+    case INITIATE_SHUTDOWN_ACTION :  // Measured VCC is below reliable operating level so initiate a controlled shutdown of beacon operation.
+      shutdown_beacon_operation();  // Note that we will never return from this function call !!!!! This is intentional.
+      returned_action = NO_ACTION;
+      break;
+
+    case OP_VOLT_WAITLOOP_ACTION : // We are waiting on the sampled VCC to exceed the defined OPERATING_VOLTAGE_Vx10
+        if (read_voltage_v_x10() >= OPERATING_VOLTAGE_Vx10) {
+          setup_si5351_and_gps(); // complete setup
+          returned_action = orion_state_machine(SETUP_DONE_EV);
+       }
+       else { // Current VCC is less than OPERATING_VOLTAGE_Vx10
+          operating_voltage_wait();
+          setup_si5351_and_gps(); // complete setup
+          returned_action = orion_state_machine(SETUP_DONE_EV);
+       }
+       break;
+      
 
     default :
       returned_action = NO_ACTION;
@@ -566,7 +673,7 @@ OrionAction orion_scheduler() {
   byte Second; // The current second
   byte Minute; // The current minute
   byte i;
-  
+
   OrionAction returned_action = NO_ACTION;
 
 
@@ -584,8 +691,8 @@ OrionAction orion_scheduler() {
 
     // If the current second is different from the last time, then it has been updated so we run.
     g_last_second = Second; // Remember what second we are currently on for the next time the scheduler is called
-    g_last_minute = Minute; 
-   
+    g_last_minute = Minute;
+
 
     if (Second == 1) { // To simplify things we trigger everything at the one second mark if we are on the correct minute
 
@@ -620,15 +727,15 @@ OrionAction orion_scheduler() {
           // If are one minute prior to a scheduled Beacon Transmission, trigger collection of new telemetry info, but first reset the system time from the GPS.
           // We set the time here to try to minimize the delta between getting the time fix and setting the Orion system clock. This also lets us
           // synchronize the regular setting of the clock with the beacon TX schedule so there is no overlap (resulting in lost events) and we have accurate
-          // clock time for each TX cycle. 
+          // clock time for each TX cycle.
           if (fix.valid.time) {
             setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
             log_time_set(); // Log it.
-            
+
             // This is a very minor kludge to prevent what seems to be a mini-time-warp, due to
             // the re-setting of the time and resulting in the generation of multiple TELEMETRY_TIME_EVs.
             g_last_second = 1;
-            
+
           }
           returned_action =  (orion_state_machine(TELEMETRY_TIME_EV));
           break;
@@ -641,30 +748,6 @@ OrionAction orion_scheduler() {
 
 
     } // end if (Second == 1)
-
-    /*
-       // We beacon every 10th minute of the hour so we use minute() modulo 10 (i.e. on 00, 10, 20, 30, 40, 50)
-       if (((Minute % 10) == 0) && (Second == 1)) {
-         // Primary WSPR transmission should start on the 1st second of the minute, but there's a slight delay
-         // in this code because it is limited to 1 second resolution.
-         returned_action = orion_state_machine(PRIMARY_WSPR_TX_TIME_EV);
-       }
-       else if (Second == 30) { // Note the choice of a second value of 30 is arbitrary
-
-         // check once per minute at 30 seconds after the minute to see if it is time to collect new telemetry data
-         for (i = 9; i < 60; i = i + 10) {
-           // i.e. i is 9, 19, 29, 39, 49, 59 which is one minute prior to transmission time
-
-           if (Minute == i) {
-             // If are about thirty seconds prior to a scheduled Beacon Transmission collect new telemetry info
-             returned_action = orion_state_machine(TELEMETRY_TIME_EV);
-             break;
-           }
-         } // end for
-
-       } // end else if
-
-    */
 
   } // end if timestatus == timeset
 
@@ -696,17 +779,10 @@ void wspr_tx_interrupt_setup() {
 
 void setup() {
 
-  // Ensure that GPS is powered up if power disable feature supported
-#if defined(GPS_POWER_DISABLE_SUPPORTED)
-  pinMode(GPS_POWER_DISABLE_PIN, OUTPUT);
-  digitalWrite(GPS_POWER_DISABLE_PIN, LOW);
-#endif
+  // Note that we don't intialize communications with the GPS or Si5351a until we are sure that we have reached OPERATING_VOLTAGE
 
-  // Ensure that Si5351a is powered up if power disable feature supported
-#if defined(SI5351_POWER_DISABLE_SUPPORTED)
-  pinMode(TX_POWER_DISABLE_PIN, OUTPUT);
-  digitalWrite(TX_POWER_DISABLE_PIN, LOW);
-#endif
+  pinMode(CAL_FREQ_IN_PIN, INPUT); // This is the frequency input must be D5 to use Timer1 as a counter for self-calibration
+  pinMode(GPS_PPS_PIN, INPUT); // 1 PPS input from GPS.
 
   // Use the TX_LED_PIN as a transmit indicator if it is present
 #if defined (TX_LED_PRESENT)
@@ -720,34 +796,31 @@ void setup() {
   digitalWrite(SYNC_LED_PIN, LOW);
 #endif
 
-  pinMode(CAL_FREQ_IN_PIN, INPUT); // This is the frequency input must be D5 to use Timer1 as a counter
-  pinMode(GPS_PPS_PIN, INPUT);
+  // Ensure that GPS is initially powered down if power disable feature is supported
+#if defined(GPS_POWER_DISABLE_SUPPORTED)
+  pinMode(GPS_POWER_DISABLE_PIN, OUTPUT);
+  digitalWrite(GPS_POWER_DISABLE_PIN, HIGH); // Powered Down
+#endif
 
-  // Start Hardware serial communications with the GPS
-  gpsPort.begin(GPS_SERIAL_BAUD);
-
-  // Initialize the Si5351
-  si5351bx_init();
-
-  // Setup WSPR TX output
-  si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL));
-  si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF); // Disable the TX clock initially
-
-  // Set PARK CLK Output - Note that we leave SI5351A_PARK_CLK_NUM running at 108 Mhz to keep the SI5351 temperature more constant
-  // This minimizes thermal induced drift during WSPR transmissions. The idea is borrowed from G0UPL's PARK feature on the QRP Labs U3S
-  si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL)); // Turn on Park Clock
+  // Ensure that Si5351a is initially powered down if power disable feature supported
+#if defined(SI5351_POWER_DISABLE_SUPPORTED)
+  pinMode(TX_POWER_DISABLE_PIN, OUTPUT);
+  digitalWrite(TX_POWER_DISABLE_PIN, HIGH); // Powered down
+#endif
 
   // Setup the software serial port for the serial monitor interface
   serial_monitor_begin();
 
-  // Set the intial state for the Orion Beacon State Machine
-  orion_sm_begin();
-
   // Read unused analog pin (not connected) to generate a random seed for QRM avoidance feature
   randomSeed(analogRead(ANALOG_PIN_FOR_RNG_SEED));
 
-  // Tell the state machine that we are done SETUP
-  g_current_action = orion_state_machine(SETUP_DONE_EV);
+  // Set the intial state for the Orion Beacon State Machine
+  orion_sm_begin();
+
+ // Tell the state machine that we need to wait for the operating voltage to be reached
+ // If VCC_SAMPLING_SUPPORTED == false then we won't bother to try to measure VCC 
+ g_current_action = orion_state_machine(WAIT_VOLTAGE_EV);
+
 
 } // end setup()
 
@@ -759,24 +832,18 @@ void loop() {
   // We need to ensure that the GPS is up and running and we have valid time before we proceed
   // This should only get invoked on system cold start. It ensures that the scheduler and logging will properly function
 
-  /*if (orion_sm_get_current_state()== CALIBRATE_ST) {
-    while (timeStatus() == timeNotSet ) { // System date/time isn't set yet
-     get_gps_fix_and_time(); // Try to get a GPS fix
-     delay(1000); // Wait one second
-    }
-
-    }
-  */
   // This triggers actual work when the state machine returns an OrionAction
   while (g_current_action != NO_ACTION) {
     g_current_action = process_orion_sm_action(g_current_action);
   }
 
-// Process serial monitor input
+  // Process serial monitor input
   serial_monitor_interface();
-  
-  // Get the current GPS fix and update the system clock time if needed, don't force a clock sync
-  get_gps_fix_and_time();
+
+  // Get the current GPS fix and update the system clock time if needed.
+  // Because the GPS could be powered off on the K1FM boards we need to check for this
+  // otherwise this might cause a problem with the serial communications
+  if (gps_power_state == ON) get_gps_fix_and_time();
 
   // Call the scheduler to determine if it is time for any action
   g_current_action = orion_scheduler();

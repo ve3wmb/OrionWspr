@@ -19,8 +19,7 @@
 #include "OrionXConfig.h"
 #include "OrionBoardConfig.h"
 #include <TimeLib.h>
-#define OFF false
-#define ON true
+
 #if defined (DEBUG_USES_SW_SERIAL)
   #include <NeoSWSerial.h>
 #endif
@@ -275,6 +274,24 @@ void log_calibration(uint64_t sampled_freq, int32_t o_cal_factor, int32_t n_cal_
   print_monitor_prompt();
   
 }
+void log_time_set(){
+  // If info logs are turned on then log the timeset
+  if  (g_info_log_on_off == OFF) return;
+  
+  print_date_time();
+  debugSerial.println(F(" ** INFO: System Time set from GPS ** "));
+  print_monitor_prompt();  
+}
+
+void log_shutdown(uint8_t voltagex10) {
+  // If either txlog is turned on or info logs are turned on then log the shutdown
+  if ((g_txlog_on_off == OFF) && (g_info_log_on_off == OFF)) return; 
+
+
+  print_date_time();
+  debugSerial.print(F(" ****** Controlled System Shutdown - low VCC(x10): "));
+  debugSerial.println(voltagex10);
+}
 /**********************
 /* Serial Monitor code 
 /**********************/
@@ -299,15 +316,6 @@ static void flush_input(void){
 
   while (debugSerial.available() > 0)
     debugSerial.read();
-}
-
-void log_time_set(){
-  // If info logs are turned on then log the timeset
-  if  (g_info_log_on_off == OFF) return;
-  
-  print_date_time();
-  debugSerial.println(F(" ** INFO: System Time set from GPS ** "));
-  print_monitor_prompt();  
 }
 
 void serial_monitor_interface(){

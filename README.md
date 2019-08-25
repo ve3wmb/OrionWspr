@@ -1,13 +1,13 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.19a
+Consider this to be Alpha Software. Current version is: v0.20a
  
 
 Current compile stats are:
 
-Sketch uses 24216 bytes or 74% (previously 78%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1226 bytes or 59% (previously 62%) of dynamic memory, leaving 882 bytes for local variables. 
+Sketch uses 24638 bytes or 80% (previously 74%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1267 bytes or 61% (previously 59%) of dynamic memory, leaving 781 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -22,7 +22,11 @@ Numbers to the right of the decimal are allocated consecutively, one per GITHUB 
 a=alpha b=beta, r=release
 
 
-Changelog : 
+Changelog :
+
+v0.20a - Implement operating and shutdown voltage handling (adds #defines for OPERATING_VOLTAGE_Vx10, SHUTDOWN_VOLTAGE_Vx10
+OPERATING_VOLTAGE_GUARD_TMO_MS to OrionXConfig.h and VCC_SAMPLING_SUPPORTED true/false to OrionBoardConfig.h). 
+For boards where VCC_SAMPLING_SUPPORTED is false, attempts to sample Vcc always return the value of OPERATING_VOLTAGE_Vx10.
 
 v0.19a - Fix for sporadic lost time events.
 
