@@ -1,7 +1,7 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.20a
+Consider this to be Alpha Software. Current version is: v0.21a
  
 
 Current compile stats are:
@@ -23,6 +23,9 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.21a - Yet another fix for sporadic TELEMETRY_TIME events. This closes the window for multiple generation of these events by introducing a 2 second delay()
+between setting the time and generating the TELEMETRY_TIME_EV so there is no way the scheduler can rerun with exactly the same second. 
 
 v0.20a - Implement operating and shutdown voltage handling (adds #defines for OPERATING_VOLTAGE_Vx10, SHUTDOWN_VOLTAGE_Vx10
 OPERATING_VOLTAGE_GUARD_TMO_MS to OrionXConfig.h and VCC_SAMPLING_SUPPORTED true/false to OrionBoardConfig.h). 

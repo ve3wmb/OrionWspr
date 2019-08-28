@@ -732,9 +732,11 @@ OrionAction orion_scheduler() {
             setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
             log_time_set(); // Log it.
 
-            // This is a very minor kludge to prevent what seems to be a mini-time-warp, due to
-            // the re-setting of the time and resulting in the generation of multiple TELEMETRY_TIME_EVs.
-            g_last_second = 1;
+            // This is a minor kludge to prevent what seems to be a mini-time-warp, due to
+            // the re-setting of the time. This sometimes results in the generation of multiple TELEMETRY_TIME_EVs.
+            // The theory is that we keep reliving second 1 (Groudhog day scenario) so to fix this we simply
+            // delay for a couple of seconds after setting the time before we continue any 8further processing. 
+            delay(2000); 
 
           }
           returned_action =  (orion_state_machine(TELEMETRY_TIME_EV));
