@@ -19,11 +19,12 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "OrionXConfig.h"
+#include <Chrono.h>
 
 #define FINE_CORRECTION_STEP   10     // 0.1 HZ step
 #define COARSE_CORRECTION_STEP 100   // 1 Hz step
 
 void setup_calibration();
 void reset_for_calibration();
-void do_calibration(unsigned long calibration_step);
+OrionCalibrationResult do_calibration(unsigned long calibration_step, uint64_t calibration_timeout);
 #endif

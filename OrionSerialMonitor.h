@@ -20,6 +20,7 @@
 */
 #include <Arduino.h>
 #include "OrionXConfig.h"
+#include "OrionQRSS.h"
 
 // For use in info logging
 enum OrionWsprMsgType {PRIMARY_WSPR_MSG, ALTITUDE_TELEM_MSG, TEMPERATURE_TELEM_MSG, VOLTAGE_TELEM_MSG};
@@ -32,10 +33,16 @@ void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq
 void orion_sm_trace_pre(byte state, byte event);
 void orion_sm_trace_post(byte state, byte processed_event,  byte resulting_action);
 bool is_qrm_avoidance_on();
+void enable_qrm_avoidance();
+void disable_qrm_avoidance();
 bool is_selfcalibration_on();  
 void log_debug_Timer1_info(byte i, int ofCount, int t_count);
 void log_calibration(uint64_t sampled_freq, int32_t o_cal_factor, int32_t n_cal_factor );
 void log_calibration_start(); 
 void log_time_set(); 
 void log_shutdown(uint8_t voltagex10);
+void log_qrss_tx_start(QrssMode mode, QrssSpeed speed);
+void log_qrss_tx_end();
+void log_calibration_fail();
+
 #endif

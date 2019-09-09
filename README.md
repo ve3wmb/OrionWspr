@@ -1,13 +1,13 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.21a
+Consider this to be Alpha Software. Current version is: v0.22a
  
 
 Current compile stats are:
 
-Sketch uses 24638 bytes or 80% (previously 74%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1267 bytes or 61% (previously 59%) of dynamic memory, leaving 781 bytes for local variables. 
+Sketch uses 228196 bytes or 80% (previously 80%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1299 bytes or 63% (previously 61%) of dynamic memory, leaving 749 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -23,6 +23,10 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.22a - Utilize self-calibration in the detection and Handling of GPS LOS and AOS. Implementation of QRSS_TX_ST to support QRSS TX as a fallback mode in
+the event of a long term (> 30 minute) GPS LOS. Minor change to si5351bx_setfreq() to add a new boolean parameter to control
+whether specified clock is enabled or not after the frequency change (needed for QRSS TX). 
 
 v0.21a - Yet another fix for sporadic TELEMETRY_TIME events. This closes the window for multiple generation of these events by introducing a 2 second delay()
 between setting the time and generating the TELEMETRY_TIME_EV so there is no way the scheduler can rerun with exactly the same second. 

@@ -45,7 +45,7 @@ void si5351bx_set_correction(int32_t corr);
 // Set the frequency for the specified clock number
 // Note that fout is in hertz x 100 (i.e. hundredths of hertz). 
 // Frequency range must be between 500 Khz and 109 Mhz
-void si5351bx_setfreq(uint8_t clknum, uint64_t fout);
+void si5351bx_setfreq(uint8_t clknum, uint64_t fout, bool tx_on);
 
 // Write a single 8 bit value to an Si5351a register addres
 void i2cWrite(uint8_t reg, uint8_t val);

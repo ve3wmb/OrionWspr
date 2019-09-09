@@ -22,7 +22,7 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 
-#define ORION_FW_VERSION "v0.21a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+#define ORION_FW_VERSION "v0.22a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
                                   // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
                                   // a = alpha b=beta, r=release
 #define OFF false
@@ -44,8 +44,11 @@
 #define OPERATING_VOLTAGE_Vx10       32         // This is the sampled VCC value x 10  required to initiate beacon operation (i.e 33 means 3.3v) 
 #define SHUTDOWN_VOLTAGE_Vx10        30         // Sampled VCC value x 10. Readings below this value will initiate the transition to SHUTDOWN_ST
 
-//#define OPERATING_VOLTAGE_GUARD_TMO_MS 3600000  // Guard Timeout value for 60,000 ms / minute x 60 = 60 minutes aka 1 hour
-#define OPERATING_VOLTAGE_GUARD_TMO_MS 300000    // Guard Timeout value for 60,000 ms / minute x 5 = 5 minutes 
+//#define OPERATING_VOLTAGE_GUARD_TMO_MS 3600000    // Guard Timeout value for  1 hour (60,000 ms / minute x 60
+#define OPERATING_VOLTAGE_GUARD_TMO_MS 300000       // Guard Timeout value for 5 minutes (60,000 ms / minute x 5)  
+#define CALIBRATION_GUARD_TMO_MS  90000             // Guard Timeout value for 1.5 minutes (60,000 ms / minute x 1.5) 
+#define INITIAL_CALIBRATION_GUARD_TMO_MS  1800000   // Guard Timeout value for 30 minutes (60,000 ms / minute x 30)
+#define GPS_LOS_GUARD_TMO_MS              1800000   // Guard Timeout value for 30 minutes (60,000 ms / minute x 30)
 
 // Type Definitions
 
@@ -73,5 +76,7 @@ struct OrionTxData {
  // bool gps_3d_fix_ok_bool;
 };
 
+
+enum OrionCalibrationResult {PASS, FAIL_PPS, FAIL_SAMPLE};
 
 #endif

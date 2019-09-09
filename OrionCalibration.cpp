@@ -35,6 +35,7 @@
 #include "OrionSi5351.h"
 #include "OrionCalibration.h"
 #include "OrionSerialMonitor.h"
+#include <Chrono.h>
 
 
 
@@ -155,7 +156,7 @@ void reset_for_calibration()
   si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
 
   // Start Calibration clock on target frequency
-  si5351bx_setfreq(SI5351A_CAL_CLK_NUM, target_freq);
+  si5351bx_setfreq(SI5351A_CAL_CLK_NUM, target_freq, SI5351_CLK_ON);
 }
 
 // This initializes both of the Interrupts needed for self-calibration.
@@ -226,17 +227,23 @@ void setup_calibration()
   si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
 
   // Start Calibration clock on target frequency
-  si5351bx_setfreq(SI5351A_CAL_CLK_NUM, target_freq);
+  si5351bx_setfreq(SI5351A_CAL_CLK_NUM, target_freq, SI5351_CLK_ON);
 }
 
-void do_calibration(unsigned long calibration_step) {
+OrionCalibrationResult do_calibration(unsigned long calibration_step, uint64_t calibration_timeout) {
   byte i;
   int timer_counter1 = 0;
+  Chrono calibration_guard_tmr;
+  OrionCalibrationResult calibration_result = PASS; // Assume it is going to pass by default
 
   log_calibration_start(); 
+  
+  
 
   // We do 24 frequency samples at 10 seconds each ( ~ 4 minutes) so the maximum correction is 24 X calibration_step
   for (i = 0; i < 24; i++) {
+
+     calibration_guard_tmr.start(); // Start a virtual guard time to ensure that we don't get stuck waiting on GPS 1PPS forever, do this for every iteration.
 
     // Enable the GPS PPS interrupt, the TIMER1_OVF_vect interrupt handler will enable the Timer1 counter after receiving the first PPS pulse
     // and will then disable everything after 11 pulses (10 seconds of measurement) and set g_calibration_proceed to true.
@@ -260,13 +267,32 @@ void do_calibration(unsigned long calibration_step) {
       TIMSK1 = (1 << TOIE1); // Enable Timer1 Overflow Interrupt
     interrupts();
 
-    while (!g_calibration_proceed); // LOOP in place here until the proceed flag is set by PPSinterruptISR after 10 seconds of sampling
-
+    // LOOP in place here until the proceed flag is set by PPSinterruptISR after 10 seconds of sampling
+    // or the guard timer value is exceeded, indictating a GPS LOS scenario 
+    while (!g_calibration_proceed) {
+       
+      if (calibration_guard_tmr.hasPassed(calibration_timeout, false) == true){
+        calibration_result = FAIL_PPS; // We timed out so calibration failed due no PPS detected.
+        calibration_guard_tmr.stop(); 
+        break; // break out of  while loop
+      }
+      
+    } // end while
+    
+    calibration_guard_tmr.stop();
+    
+    if (calibration_result == FAIL_PPS){
+      log_calibration_fail();
+      break; // break out of For loop 
+    }
+    
     // Done the 10 seconds of sampling, take the count and calculate the frequency.
     noInterrupts();
       timer_counter1 = TCNT1;
     interrupts();
 
+    
+    
     // We multiply by ten as we are only sampling to a 10th of a Hz but target frequency is expressed in hundredths of Hz
     measured_rx_freq = (timer_counter1 + (65536 * (int64_t)overflowCounter)) * 10ULL;
 
@@ -285,9 +311,10 @@ void do_calibration(unsigned long calibration_step) {
           cal_factor = cal_factor + calibration_step;
       }
       else {
-        // Measured Frequency is Zero so the calibration has failed
-        // Todo -  This should be handled by aborting and returning a Fail return code
-        swerr(8, 0); // measured_rx_freq is zero so don't modify the calibration factor
+        // Measured Frequency is Zero so the calibration has failed due to not sampling the Si5351a Calibration clock 
+        calibration_result = FAIL_SAMPLE; 
+        log_calibration_fail();
+        break; // break out of the for loop  *****
       }
 
       log_debug_Timer1_info(i, overflowCounter, timer_counter1);
@@ -296,7 +323,7 @@ void do_calibration(unsigned long calibration_step) {
       log_calibration(measured_rx_freq, old_cal_factor, cal_factor );
 
       si5351bx_set_correction(cal_factor); // Update the correction factor and reset the frequency to use it
-      si5351bx_setfreq(SI5351A_CAL_CLK_NUM, target_freq);
+      si5351bx_setfreq(SI5351A_CAL_CLK_NUM, target_freq, SI5351_CLK_ON);
 
       delay(10);
 
@@ -304,12 +331,15 @@ void do_calibration(unsigned long calibration_step) {
 
 
   } // end for
+
+  // *****  In the event that calibration_result is set to FAIL_PPS or FAIL_SAMPLE we ended up here after break; 
   
   // Turn off the Calibration clock
   si5351bx_enable_clk(SI5351A_CAL_CLK_NUM, SI5351_CLK_OFF);
 
   // Turn on the PARK clock
-  si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL)); // Turn on Park Clock
+  si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL), SI5351_CLK_ON); // Turn on Park Clock
 
+  return calibration_result; 
 
 } // end do_calibration

@@ -72,17 +72,21 @@ OrionAction orion_state_machine(OrionEvent event) {
         break;
 
     case  CALIBRATE_ST :  // calibrating Si5351a clock
-      if (event == CALIBRATION_DONE_EV ) {
-        // Done setup now do intial calibration
+    
+      if ( (event == CALIBRATION_DONE_EV) || (event == CALIBRATION_FAIL_EV) ) {
         orion_sm_change_state(WAIT_TELEMETRY_ST);
         next_action = NO_ACTION;
       }
-      else if (event == CALIBRATION_FAIL_EV) {
-        orion_sm_change_state(WAIT_TELEMETRY_ST);
-        next_action = NO_ACTION;
-        // TODO handle this more gracefully
-        swerr(9, event); // Calibration was not successful check logs
+      else { 
+        if (event == GPS_LOS_TIMEOUT_EV) { 
+          // We exceeded the guard time for GPS LOS so we switch over to QRSS transmissions
+          orion_sm_change_state(QRSS_TX_ST);
+          next_action = QRSS_TX_ACTION; // Initiate QRSS Transmission Mode until GPS AOS  
+        }
+        else
+          swerr(9, event); // Unexpected event in this state
       }
+        
       break;
 
 
@@ -213,6 +217,13 @@ OrionAction orion_state_machine(OrionEvent event) {
         else
           swerr(15, event);
         break;
+        
+    case QRSS_TX_ST :
+      if (event == QRSS_TX_DONE_EV) {
+        orion_sm_change_state(CALIBRATE_ST);
+        next_action = CALIBRATION_ACTION;  
+      }
+      break; 
       
     default : 
         swerr(6, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.

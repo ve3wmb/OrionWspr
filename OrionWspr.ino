@@ -45,7 +45,7 @@
 // NeoGps (https://github.com/SlashDevin/NeoGPS) - NMEA and uBlox GPS parser using Nominal Configuration : date, time, lat/lon, altitude, speed, heading,
 //  number of satellites, HDOP, GPRMC and GPGGA messages.
 // NeoSWSerial (https://github.com/SlashDevin/NeoSWSerial)
-// LightChrono (https://github.com/SofaPirate/Chrono) - Simple Chronometer Library
+// Chrono (https://github.com/SofaPirate/Chrono) - Simple Chronometer Library
 //
 // License
 // -------
@@ -73,7 +73,7 @@
 #include <int.h>
 #include <NMEAGPS.h>  // NeoGps
 #include <TimeLib.h>
-#include <LightChrono.h>
+#include <Chrono.h>
 #include "OrionXConfig.h"
 #include "OrionBoardConfig.h"
 #include "OrionSi5351.h"
@@ -81,6 +81,7 @@
 #include "OrionSerialMonitor.h"
 #include "OrionCalibration.h"
 #include "OrionTelemetry.h"
+#include "OrionQRSS.h"
 
 // NOTE THAT ALL #DEFINES THAT ARE INTENDED TO BE USER CONFIGURABLE ARE LOCATED IN OrionXConfig.h and OrionBoardConfig.h
 // DON'T TOUCH ANYTHING DEFINED IN THIS FILE WITHOUT SOME VERY CAREFUL CONSIDERATION.
@@ -109,10 +110,12 @@ JTEncode jtencode;
 // GPS related
 static NMEAGPS gps;
 static gps_fix fix;
-bool gps_power_state = OFF;
+bool g_gps_power_state = OFF;
+bool g_gps_time_ok = false; // This boolean is used to determine if we truly have a good time fix from the GPS to set the clock.
 
-//Time related
-//LightChrono g_chrono;
+// Time & GPS related
+Chrono g_chrono_GPS_LOS;
+
 
 // If we are using software serial to talk to the GPS then we need to create an instance of NeoSWSerial and
 // provide the RX and TX Pin numbers.
@@ -341,7 +344,7 @@ void encode_and_tx_wspr_msg() {
   jtencode.wspr_encode(g_beacon_callsign, g_grid_loc, g_tx_pwr_dbm, g_tx_buffer);
 
   // Reset the tone to 0 and turn on the TX output
-  si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL));
+  si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL), SI5351_CLK_ON);
 
   // Turn off the PARK clock
   si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
@@ -361,7 +364,7 @@ void encode_and_tx_wspr_msg() {
   // Now send the rest of the message
   for (i = 0; i < SYMBOL_COUNT; i++)
   {
-    si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL) + (g_tx_buffer[i] * TONE_SPACING));
+    si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL) + (g_tx_buffer[i] * TONE_SPACING), SI5351_CLK_ON);
     g_proceed = false;
 
     // We spin our wheels in TX here, waiting until the Timer1 Interrupt sets the g_proceed flag
@@ -373,7 +376,7 @@ void encode_and_tx_wspr_msg() {
   si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF);
 
   // Re-enable the Park Clock
-  si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL)); // Turn on Park Clock
+  si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL), SI5351_CLK_ON); // Turn on Park Clock
 
 
   // If we are using the TX LED turn it off
@@ -393,8 +396,9 @@ void get_gps_fix_and_time() {
     fix = gps.read();
 
     if (fix.valid.time) {
+       
 
-      // If we have a valid fix, set the Time on the Arduino if needed
+      // If we have a valid fix, set the Time on the Arduino if needed, This handles the intial time setting case
       if ( timeStatus() == timeNotSet ) { // System date/time isn't set so set it
         setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
         log_time_set(); // Log it.
@@ -407,9 +411,22 @@ void get_gps_fix_and_time() {
           digitalWrite(SYNC_LED_PIN, LOW); // Turn LED off
 #endif
       }
+      
+      // Ensure that we don't continue to try to set the clock from a stale fix if we are in GPS LOS
+      if (g_chrono_GPS_LOS.isRunning()== true) {
+         g_gps_time_ok = false; // We seem to think we have a valid time fix but we are in LOS so don't trust the time
+      }
+      else { // Not in LOS and fix.valid.time is true 
+        g_gps_time_ok = true; //gps time is ok
+      }
 
-    } // end if fix.valid.time
-  } // end while
+  } 
+  else { // fix.valid.time == false
+    // The GPS time fix isn't valid so it doesn't matter if we are in LOS or not, flag it as bad 
+    g_gps_time_ok = false;
+  }
+    
+ } // end while
 
 }  // end get_gps_fix_and_time()
 
@@ -436,6 +453,7 @@ void shutdown_beacon_operation() { // Called on the reception of an INITIATE_SHU
 #if defined(GPS_POWER_DISABLE_SUPPORTED)
   digitalWrite(GPS_POWER_DISABLE_PIN, HIGH); // Powered Down
 #endif
+   g_gps_power_state = OFF;  
 
   // Ensure that Si5351a is powered down if power disable feature supported
 #if defined(SI5351_POWER_DISABLE_SUPPORTED)
@@ -451,13 +469,13 @@ void shutdown_beacon_operation() { // Called on the reception of an INITIATE_SHU
 }
 
 bool operating_voltage_wait() {
-  LightChrono volt_loop_guard_tmr; 
+  Chrono volt_loop_guard_tmr; 
   
   volt_loop_guard_tmr.start(); // Start a virtual guard time to ensure that we don't get stuck waiting forever on VCC to reach operating voltage
    
   // Loop until the measured VCC value is within operating range or the guard timer expires (call me paranoid but I don't like looping forever)
   while(!volt_loop_guard_tmr.hasPassed(OPERATING_VOLTAGE_GUARD_TMO_MS)){ // Loop for a maximum of OPERATING_VOLTAGE_GUARD_TMO_MS
-    delay(180000); // dealy 3 minutes for now, replace with code to sleep the processor using the LowPower.h library
+    delay(180000); // delay 3 minutes for now, replace with code to sleep the processor using the LowPower.h library
     
     if (read_voltage_v_x10() >= OPERATING_VOLTAGE_Vx10) return true;  // Operating voltage achieved     
   }
@@ -480,21 +498,90 @@ void setup_si5351_and_gps() {
 #endif
 
     // Start Hardware serial communications with the GPS
-    gps_power_state = ON;
+    g_gps_power_state = ON;
     gpsPort.begin(GPS_SERIAL_BAUD);
 
     // Initialize the Si5351
     si5351bx_init();
 
     // Setup WSPR TX output
-    si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL));
-    si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_OFF); // Disable the TX clock initially
+    si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, (g_beacon_freq_hz * 100ULL), SI5351_CLK_OFF); // Disable the TX clock initially 
 
     // Set PARK CLK Output - Note that we leave SI5351A_PARK_CLK_NUM running at 108 Mhz to keep the SI5351 temperature more constant
     // This minimizes thermal induced drift during WSPR transmissions. The idea is borrowed from G0UPL's PARK feature on the QRP Labs U3S
-    si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL)); // Turn on Park Clock
+    si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL), SI5351_CLK_ON); // Turn on Park Clock
       
 }
+
+OrionAction handle_calibration_result(OrionCalibrationResult cal_result) {
+  OrionAction action = NO_ACTION;
+ 
+  switch (cal_result) {
+        
+        case PASS :
+        
+          if (g_chrono_GPS_LOS.isRunning()== true){ // We are recovering from a GPS LOS
+            disable_qrm_avoidance(); // This gives us two passed calibration cycles to get back on frequency before re-enabling
+            g_chrono_GPS_LOS.stop(); // If we were in an LOS situation it is over because of the PASS so kill the timer
+          }
+          else { // GPS LOS Guard Timer is not running 
+            enable_qrm_avoidance(); 
+          }
+             
+          action = orion_state_machine(CALIBRATION_DONE_EV);
+          break;
+
+        case FAIL_PPS : // We timed out waiting for 1PPS signal from the GPS indicating GPS LOS
+
+          // We need to handle three scenarios :
+          // 1) The previous Calibrations failed so the g_chrono_GPS_LOS timer is already running but has not yet expired. Pass CALIBRATION_FAIL_EV to the state machine
+          // 2) The same as 1 but the timer has expired so we need to trigger QRSS Beaconing by passing GPS_LOS_TIMEOUT_EV to the state machine. 
+          // 3) This is the first Calibration failure so we need to start the g_chrono_GPS_LOS timer and pass CALIBRATION_FAIL_EV to the state machine.
+          // For all three scenarios we want to ensure that  QRM Avoidance is disabled until we have a successful calibration completion.
+          // This helps to keep us transmitting with the 200 Hz WSPR "window". 
+          
+          disable_qrm_avoidance();// Failed calibration due to GPS LOS so we can't be certain we will stay within the WSPR window if we jump around.
+          
+          if (g_chrono_GPS_LOS.isRunning() == true){ // The GPS LOS virtual guard timer is running 
+
+            if (g_chrono_GPS_LOS.hasPassed(GPS_LOS_GUARD_TMO_MS, false) == true) {
+              // The GPS LOS time exceeds GPS_LOS_GUARD_TMO_M so trigger a timeout event (scenario 2)
+              // We keep the GPS LOS virtual timer running so we know that we are still in LOS
+             action = orion_state_machine(GPS_LOS_TIMEOUT_EV);  
+            }
+            else { //The GPS LOS guard timer is running but hasn't expired so business as usual, but without QRM avoidance (scenario 1)
+              action = orion_state_machine(CALIBRATION_FAIL_EV);
+            }
+            
+          } // end if (timer isRunning)
+           
+          else {// GPS_LOS guard timer is not running so start it (scenario 3) 
+            g_chrono_GPS_LOS.start(); 
+            action = orion_state_machine(CALIBRATION_FAIL_EV);
+          }
+          
+         break;
+
+        case FAIL_SAMPLE : // We had PPS but sampled frequency was zero indicating a problem with Si5351a Calibration clock output
+        
+          // We can't be sure of our frequency so disable QRM avoidance but continue with WSPR TX assuming it is just the Calibration clock
+          // not the whole Si5351a that is dead, otherwise we are SOL anyway. 
+          // FWIW we could try to re-initialize the SI5351. If SI5351_POWER_DISABLE_SUPPORTED is support (i.e. K1FM V1.3 boards) then we could try 
+          // cycling the power and reinitializing the Si531 but that is not guaranteed to work. Possible future enhancement ?
+          disable_qrm_avoidance(); 
+          action = orion_state_machine(CALIBRATION_FAIL_EV);
+          break;
+
+         default : 
+            swerr(20, cal_result); // Unimplemetend cal_result, we should never be here. 
+             action = orion_state_machine(CALIBRATION_DONE_EV); // so we don't get stuck here. 
+            break;
+        
+      } // end switch (cal_result)
+
+      return action;
+} // end handle_calibration_result
+
 
 OrionAction process_orion_sm_action (OrionAction action) {
   /****************************************************************************************************
@@ -524,33 +611,36 @@ OrionAction process_orion_sm_action (OrionAction action) {
       break;
 
 
-    case CALIBRATION_ACTION :
+    case CALIBRATION_ACTION : {
+      OrionCalibrationResult cal_result = PASS;
 
       // re-initialize Interrupts for calibration
       reset_for_calibration();
-
-      //TODO This should be modified with a boolean return code so we can handle calibration fail.
-      do_calibration(FINE_CORRECTION_STEP);
+ 
+      cal_result = do_calibration(FINE_CORRECTION_STEP, CALIBRATION_GUARD_TMO_MS);
 
       // Restore Timer1 interrupt for WSPR Transmission
       wspr_tx_interrupt_setup();
-      returned_action = orion_state_machine(CALIBRATION_DONE_EV);
 
-      break;
+      returned_action = handle_calibration_result(cal_result);
+    }
+    break;
 
-    case STARTUP_CALIBRATION_ACTION :
+    case STARTUP_CALIBRATION_ACTION : {
+      OrionCalibrationResult cal_result = PASS;
 
       // Initialize Interrupts for Initial calibration
       setup_calibration();
 
       //TODO This should be modified with a boolean return code so we can handle calibration fail.
-      do_calibration(COARSE_CORRECTION_STEP); // Initial calibration with 1 Hz correction step
+      cal_result = do_calibration(COARSE_CORRECTION_STEP, INITIAL_CALIBRATION_GUARD_TMO_MS); // Initial calibration with 1 Hz correction step
 
       // Reset the Timer1 interrupt for WSPR transmission
       wspr_tx_interrupt_setup();
 
-      returned_action = orion_state_machine(CALIBRATION_DONE_EV);
-      break;
+      returned_action = handle_calibration_result(cal_result);
+    }
+    break;
 
 
     case GET_TELEMETRY_ACTION :
@@ -653,7 +743,11 @@ OrionAction process_orion_sm_action (OrionAction action) {
        }
        break;
       
-
+    case QRSS_TX_ACTION :
+        qrss_beacon();
+        returned_action = orion_state_machine(QRSS_TX_DONE_EV);
+        break; 
+        
     default :
       returned_action = NO_ACTION;
       break;
@@ -728,14 +822,14 @@ OrionAction orion_scheduler() {
           // We set the time here to try to minimize the delta between getting the time fix and setting the Orion system clock. This also lets us
           // synchronize the regular setting of the clock with the beacon TX schedule so there is no overlap (resulting in lost events) and we have accurate
           // clock time for each TX cycle.
-          if (fix.valid.time) {
+          if (g_gps_time_ok == true) {  // fix.valid.time is true and we are not in GPS LOS so we can trust the time fix. 
             setTime(fix.dateTime.hours, fix.dateTime.minutes, fix.dateTime.seconds, fix.dateTime.date, fix.dateTime.month, fix.dateTime.year);
             log_time_set(); // Log it.
 
             // This is a minor kludge to prevent what seems to be a mini-time-warp, due to
             // the re-setting of the time. This sometimes results in the generation of multiple TELEMETRY_TIME_EVs.
-            // The theory is that we keep reliving second 1 (Groudhog day scenario) so to fix this we simply
-            // delay for a couple of seconds after setting the time before we continue any 8further processing. 
+            // The theory is that we keep reliving second 1 (Groundhog day scenario) so to fix this we simply
+            // delay for a couple of seconds after setting the time before we continue any further processing. 
             delay(2000); 
 
           }
@@ -845,7 +939,7 @@ void loop() {
   // Get the current GPS fix and update the system clock time if needed.
   // Because the GPS could be powered off on the K1FM boards we need to check for this
   // otherwise this might cause a problem with the serial communications
-  if (gps_power_state == ON) get_gps_fix_and_time();
+  if (g_gps_power_state == ON) get_gps_fix_and_time();
 
   // Call the scheduler to determine if it is time for any action
   g_current_action = orion_scheduler();

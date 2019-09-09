@@ -109,7 +109,7 @@ void si5351bx_set_correction(int32_t corr) {
 // Frequency range must be between 500 Khz and 109 Mhz
 // An fout value of 0 will shutdown the specified clock.
 
-void si5351bx_setfreq(uint8_t clknum, uint64_t fout)
+void si5351bx_setfreq(uint8_t clknum, uint64_t fout, bool tx_on)
 {
   // Note that I am not being lazy here in naming variables. If you refer to SiLabs 
   // application note AN619 - "Manually Generating an Si5351 Register Map", the formulas
@@ -122,6 +122,7 @@ void si5351bx_setfreq(uint8_t clknum, uint64_t fout)
 
   if ((fout < 50000000) || (fout > 10900000000)) {  // If clock freq out of range 500 Khz to 109 Mhz
     si5351bx_clken |= 1 << clknum;      //  shut down the clock
+    i2cWrite(3, si5351bx_clken);
   }
   
   else {
@@ -148,11 +149,16 @@ void si5351bx_setfreq(uint8_t clknum, uint64_t fout)
     vals[7] = p2 & 0x000000FF;
     i2cWriten(42 + (clknum * 8), vals, 8); // Write to 8 msynth regs
     i2cWrite(16 + clknum, 0x0C | si5351bx_drive[clknum]); // use local msynth
-    si5351bx_clken &= ~(1 << clknum);   // Clear bit to enable clock
-    
+
+    if (tx_on == true) 
+      si5351bx_clken &= ~(1 << clknum);   // Clear bit to enable clock
+    else
+      si5351bx_clken |= 1 << clknum;      //  Set bit to shut down the clock
+
+   i2cWrite(3, si5351bx_clken); // Enable/disable clock
   }
   
-  i2cWrite(3, si5351bx_clken);        // Enable/disable clock
+          
 
 }
 
@@ -171,5 +177,7 @@ void i2cWriten(uint8_t reg, uint8_t *vals, uint8_t vcnt) {  // write array
   while (vcnt--) Wire.write(*vals++);
   Wire.endTransmission();
 }
+
+
 
 // *********** End of Jerry's si5315bx routines *********************************************************

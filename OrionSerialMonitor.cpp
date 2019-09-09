@@ -20,6 +20,7 @@
 #include "OrionBoardConfig.h"
 #include <TimeLib.h>
 
+
 #if defined (DEBUG_USES_SW_SERIAL)
   #include <NeoSWSerial.h>
 #endif
@@ -71,6 +72,14 @@ static bool g_selfcalibration_on_off = ON;
 #else
   #define debugSerial Serial
 #endif
+
+void enable_qrm_avoidance() {
+  g_qrm_avoidance_on_off = ON;
+}
+
+void disable_qrm_avoidance(){
+  g_qrm_avoidance_on_off = OFF;
+}
 
 bool is_selfcalibration_on(){
   if (g_selfcalibration_on_off == OFF)
@@ -279,7 +288,7 @@ void log_time_set(){
   if  (g_info_log_on_off == OFF) return;
   
   print_date_time();
-  debugSerial.println(F(" ** INFO: System Time set from GPS ** "));
+  debugSerial.println(F(" ** Info: System Time set from GPS ** "));
   print_monitor_prompt();  
 }
 
@@ -292,6 +301,34 @@ void log_shutdown(uint8_t voltagex10) {
   debugSerial.print(F(" ****** Controlled System Shutdown - low VCC(x10): "));
   debugSerial.println(voltagex10);
 }
+
+void log_qrss_tx_start(QrssMode mode, QrssSpeed spd){
+   if ((g_txlog_on_off == OFF) && (g_info_log_on_off == OFF)) return;
+   
+   print_date_time();
+   debugSerial.print(F("QRSS TX Start - QrssMode: "));
+   debugSerial.print(mode);  
+   debugSerial.print(F(" Speed: "));
+   debugSerial.println(spd);
+   print_monitor_prompt();  
+}
+
+void log_qrss_tx_end(){
+  if ((g_txlog_on_off == OFF) && (g_info_log_on_off == OFF)) return; 
+
+   print_date_time();
+   debugSerial.println(F("QRSS TX Complete "));
+   print_monitor_prompt();
+ }
+
+ void log_calibration_fail() {
+  if (g_info_log_on_off == OFF) return;
+
+  print_date_time();
+  debugSerial.println(F(" ** Info: Calibration Fail ** "));
+  print_monitor_prompt();
+  
+ }
 /**********************
 /* Serial Monitor code 
 /**********************/
