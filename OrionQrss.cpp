@@ -3,8 +3,11 @@
    This provides a fallback QRSS TX mode that will become active
    when a GPS_LOS_TIME_EV occurs, indicating a long term GPS LOS (loss of signal).
 
-   This code is derived from the QRSS/FSKCW/DFCW Beacon Keyer by Hans Summers G0UPL, 2012 (copyright)
-   and used with permission by Hans for this derivitive work.
+   This code is derived from the QRSS/FSKCW/DFCW Beacon Keyer by Hans Summers G0UPL(copyright 2012)
+   and used his permission for this derivitive work. The original source code is from here :
+   https://qrp-labs.com/images/qrssarduino/qrss.ino
+
+   Adapted by Michael, VE3WMB to use the Si5351a as a transmitter. 
 
    Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
 
@@ -34,15 +37,19 @@ const char msg[] = QRSS_MESSAGE; // Defined in OrionQrss.h
 // This array is indexed by a parameter of type QrssSpeed, defined in OrionQrss.h
 const unsigned int speeds[] = {1, 30, 60, 100};   // Speeds for: s12wpm, QRSS3, QRSS6, QRSS10
 
-//
+
+byte charCode(char c) {
+
 // This function returns the encoded CW pattern for the character passed in.
-// Binary encoding is left-padded with ones.
-// Processing left to right, first 0 (discarded) indicates that pattern starts with next bit.
+// Binary encoding is left-padded. Unused high-order bits are all ones.
+// The first zero is the start bit, which is discarded.
+// Processing from higher to lower order, bits we skip over ones, then discard first 0 (start bit). The next bit is the first element.
+// We process each element sending a DIT or DAH, until we reach the end of the pattern.
+//
 // Pattern encoding is 0 = DIT, 1 = DAH.
 // So 'A' = B11111001, which is 1 1 1 1 1 (padding bits) 0 (start bit)  0 1 (dit, dah)
+// This excellent encoding scheme was developed by Hans, G0UPL as noted above.
 
-byte charCode(char c)
-{
   switch (c)
   {
     case 'A':  return B11111001; break;    // A  .-
@@ -100,7 +107,6 @@ void setRfFsk(boolean rf_on, boolean setFSK_high)
     fsk_value = FSK_LOW;
   }
 
-
   if (rf_on == true) {
     si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, ((QRSS_BEACON_FREQ_HZ + fsk_value) * 100ULL), SI5351_CLK_ON );
   }
@@ -130,7 +136,7 @@ bool qrss_transmit(QrssMode mode, QrssSpeed ditSpeed)
     divisor = 33;                        // (inter-symbol gap is 1/3 of a dit)
   else
     divisor = 100;                      // For ever other mode it is one dit length
-    
+
 
   timerCounter++;                        // 1000Hz at this point
 
@@ -138,55 +144,60 @@ bool qrss_transmit(QrssMode mode, QrssSpeed ditSpeed)
   {
     timerCounter = 0;                    // 10 Hz here (30Hz for DFCW)
     ditCounter++;                        // Generates the correct dit-length
-    
-    if (ditCounter >= speeds[ditSpeed]){ // We have counted the duration of a dit
-    
+
+    if (ditCounter >= speeds[ditSpeed]) { // We have counted the duration of a dit
+
       ditCounter = 0;
 
       if (!pause) {
-       // Pause is set to 2 after the last element of the character has been sent
+        // Pause is set to 2 after the last element of the character has been sent
         key--;                         // This generates the correct pause between characters (3 dits)
-        if ((!key) && (!charBit)){
-        
+        if ((!key) && (!charBit)) {
+
           if (mode == MODE_DFCW)
             pause = 3;                 // DFCW needs an extra delay to make it 4/3 dit-length
           else
             pause = 2;
         }
-      } // end if (!pause) 
+      } // end if (!pause)
       else
         pause--;
-        
-      
+
+
       // Key becomes 255 when the last element (dit or dah) of the character has been sent
       if (key == 255) {
+
         // Done sending the last element (dit or dah) in the character
         // If the last symbol of the character has been sent, get the next character
-        
-        if (!charBit){
+
+        if (!charBit) {
           // Increment the message character index
           msgIndex++;
-          
-          // Reset to the start of the message when the end is reached
-          if (!msg[msgIndex]) msgIndex = 0;
-          
-          // Get the encoded bit pattern for the morse character
-          character = charCode(msg[msgIndex]);
-          // Start at the 7'th (leftmost) bit of the bit pattern
-          charBit = 7;
-          
-          // Loop through bits looking for a 0, signifying start of coding bits
-          while (character & (1 << charBit)) charBit--;
+
+          // If we are at the end of the message flag transmission_done
+          if (!msg[msgIndex]) {
+            msgIndex = 0;
+            transmission_done = true;
+          }
+          else {
+
+            // Get the encoded bit pattern for the morse character
+            character = charCode(msg[msgIndex]);
+            // Start at the 7'th (leftmost) bit of the bit pattern
+            charBit = 7;
+
+            // Loop through bits looking for a 0, signifying start of coding bits
+            while (character & (1 << charBit)) charBit--;
+          }
 
         } // end if (!charBit)
 
         charBit--;                     // Move to the next rightermost bit of the pattern, this is the first element
 
-        // Special case for the space character, we use this to designate the end of message.
-        if (character == charCode(' ')) {
+
+        if ((transmission_done == true) || (character == charCode(' ') )) { // Special case for space
           key = 0;
           dah = false;
-          transmission_done = true; 
         }
         else {
           // Get the state of the current bit in the pattern
@@ -209,8 +220,8 @@ bool qrss_transmit(QrssMode mode, QrssSpeed ditSpeed)
 
       if (!key) dah = false;
 
-      
-      // 
+
+      //
       if (mode == MODE_FSKCW)
       {
         //setRF(true);                    // in FSK/CW mode, the RF output is always ON
@@ -233,46 +244,50 @@ bool qrss_transmit(QrssMode mode, QrssSpeed ditSpeed)
         setRfFsk(false, false);
 
     } // end if (ditcounter >= speeds[ditspeed];
-    
+
   } // end if (timercounter == divisor)
 
 
-  if (transmission_done == true){
-    // reset the static variables for the next transmission 
-    timerCounter = 0;             
-    ditCounter = 0;                 
-    pause = 0;                     
-    msgIndex = 255;                 
-    character = 0;                 
-    key = 0;                       
-    charBit = 0;                   
-    dah = false; 
+  if (transmission_done == true) {
+    // reset the static variables for the next transmission
+    timerCounter = 0;
+    ditCounter = 0;
+    pause = 0;
+    msgIndex = 255;
+    character = 0;
+    key = 0;
+    charBit = 0;
+    dah = false;
   }
-  
-  return transmission_done; 
-  
+
+  return transmission_done;
+
 } // end qrss_transmit function
 
 
-void qrss_beacon(){
+void qrss_beacon() {
 
   static unsigned long milliPrev;        // Static variable stores previous millisecond count
   unsigned long milliNow;
   bool done_transmission = false;
 
-  
+  // Since we are using FSKCW, turn on the clock now to let it warm up, delay one second and then turn on TX
+  si5351bx_setfreq(SI5351A_WSPRTX_CLK_NUM, ((QRSS_BEACON_FREQ_HZ) * 100ULL), SI5351_CLK_OFF );
+  delay(1000);
+  si5351bx_enable_clk(SI5351A_WSPRTX_CLK_NUM, SI5351_CLK_ON);
+
   // Turn off the PARK clock
   si5351bx_enable_clk(SI5351A_PARK_CLK_NUM, SI5351_CLK_OFF);
 
-  log_qrss_tx_start(MODE_DFCW, QRSS10);
-  
+  log_qrss_tx_start(MODE_FSKCW, QRSS10);
+
   while (!done_transmission) {
     milliNow = millis();                   // Get millisecond counter value
 
     if (milliNow != milliPrev)             // If one millisecond has elapsed, call the beacon() function
     {
       milliPrev = milliNow;
-      done_transmission = qrss_transmit(MODE_QRSS, QRSS10); // This gets called once per millisecond (i.e 1000 times per second)
+      done_transmission = qrss_transmit(MODE_FSKCW, QRSS10); // This gets called once per millisecond (i.e 1000 times per second)
     }
   } // end while (!done)
 
@@ -284,6 +299,6 @@ void qrss_beacon(){
 
   log_qrss_tx_end();
 
-  delay(POST_QRSS_TX_DELAY_MS); // Kill some time before attempting calibration 
-  
+  delay(POST_QRSS_TX_DELAY_MS); // Kill some time before attempting calibration
+
 } // end qrss_beacon()

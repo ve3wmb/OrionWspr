@@ -1,13 +1,13 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.22a
+Consider this to be Alpha Software. Current version is: v0.23a
  
 
 Current compile stats are:
 
-Sketch uses 228196 bytes or 80% (previously 80%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1299 bytes or 63% (previously 61%) of dynamic memory, leaving 749 bytes for local variables. 
+Sketch uses 26316 bytes or 85% (previously 80%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1301 bytes or 63% (previously 63%) of dynamic memory, leaving 747 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -23,6 +23,9 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.23a - Changes to fallback QRSS Beacon. Switched from DFCW10 to FSKCW10 mode. Minor Modes to improve FSKCW signal. Change to transmit log frequency 
+to add 2 Hz to reflect TX frequency being between TONE1 and TONE2. 
 
 v0.22a - Utilize self-calibration in the detection and Handling of GPS LOS and AOS. Implementation of QRSS_TX_ST to support QRSS TX as a fallback mode in
 the event of a long term (> 30 minute) GPS LOS. Minor change to si5351bx_setfreq() to add a new boolean parameter to control

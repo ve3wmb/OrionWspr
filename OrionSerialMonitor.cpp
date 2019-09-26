@@ -207,7 +207,7 @@ void orion_log_wspr_tx(OrionWsprMsgType msgType, char grid[], unsigned long freq
   debugSerial.print(F(" Pwr/dBm field:"));
   debugSerial.print(pwr_dbm);
   debugSerial.print(F(", Freq Hz: "));
-  debugSerial.println(freq_hz);
+  debugSerial.println((freq_hz + 2)); // This would be the Tone 0 frequency so we add 2 Hz 
   print_monitor_prompt();
   
 }
