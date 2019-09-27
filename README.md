@@ -1,12 +1,12 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.23a
+Consider this to be Alpha Software. Current version is: v0.24a
  
 
 Current compile stats are:
 
-Sketch uses 26316 bytes or 85% (previously 80%) of program storage space. Maximum is 30720 bytes. 
+Sketch uses 26426 bytes or 86% (previously 85%) of program storage space. Maximum is 30720 bytes. 
 Global variables use 1301 bytes or 63% (previously 63%) of dynamic memory, leaving 747 bytes for local variables. 
 Maximum is 2048 bytes.
 
@@ -23,6 +23,11 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.24a - Code added to cover GPS LOS scenaro #4 where calibration_guard_tmr (INITIAL_CALIBRATION_GUARD_TMO_MS) expires 
+before g_chrono_GPS_LOS (GPS_LOS_GUARD_TMO_MS). Also added g_chrono_GPS_LOS.stop() to setup() as default for Chrono
+is to start the timer in the constructor, which was causing unexpected behaviour. Added new event STARTUP_CALIBRATION_FAIL_EV
+to state machine. This triggers QRSS Beaconing on start-up calibration failure. 
 
 v0.23a - Changes to fallback QRSS Beacon. Switched from DFCW10 to FSKCW10 mode. Minor Modes to improve FSKCW signal. Change to transmit log frequency 
 to add 2 Hz to reflect TX frequency being between TONE1 and TONE2. 

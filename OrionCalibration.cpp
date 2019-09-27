@@ -233,14 +233,14 @@ void setup_calibration()
 OrionCalibrationResult do_calibration(unsigned long calibration_step, uint64_t calibration_timeout) {
   byte i;
   int timer_counter1 = 0;
-  Chrono calibration_guard_tmr;
+  Chrono calibration_guard_tmr; 
   OrionCalibrationResult calibration_result = PASS; // Assume it is going to pass by default
 
   log_calibration_start(); 
   
   
 
-  // We do 24 frequency samples at 10 seconds each ( ~ 4 minutes) so the maximum correction is 24 X calibration_step
+  // We do 24 frequency samples at 10 seconds each ( ~ 4 minutes) so the maximum correction is 24 X calibration_step 
   for (i = 0; i < 24; i++) {
 
      calibration_guard_tmr.start(); // Start a virtual guard time to ensure that we don't get stuck waiting on GPS 1PPS forever, do this for every iteration.

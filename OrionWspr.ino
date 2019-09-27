@@ -114,6 +114,8 @@ bool g_gps_power_state = OFF;
 bool g_gps_time_ok = false; // This boolean is used to determine if we truly have a good time fix from the GPS to set the clock.
 
 // Time & GPS related
+// Note that the constructor for Chrono automatically starts the timer so we need to do a g_chrono_GPS_LOS.stop() in setup()
+// We will then start this timer later when we need it.
 Chrono g_chrono_GPS_LOS;
 
 
@@ -480,7 +482,9 @@ bool operating_voltage_wait() {
     if (read_voltage_v_x10() >= OPERATING_VOLTAGE_Vx10) return true;  // Operating voltage achieved     
   }
   
-  return false; // volt_loop_guard_tmr timed out  
+  volt_loop_guard_tmr.stop();
+  return false; // volt_loop_guard_tmr timed out 
+   
 } // end operating_voltage_wait
 
 
@@ -513,7 +517,7 @@ void setup_si5351_and_gps() {
       
 }
 
-OrionAction handle_calibration_result(OrionCalibrationResult cal_result) {
+OrionAction handle_calibration_result(OrionCalibrationResult cal_result, OrionAction cal_action) {
   OrionAction action = NO_ACTION;
  
   switch (cal_result) {
@@ -529,36 +533,73 @@ OrionAction handle_calibration_result(OrionCalibrationResult cal_result) {
           }
              
           action = orion_state_machine(CALIBRATION_DONE_EV);
+          
           break;
 
-        case FAIL_PPS : // We timed out waiting for 1PPS signal from the GPS indicating GPS LOS
+        case FAIL_PPS : {// We timed out waiting for 1PPS signal from the GPS indicating GPS LOS
 
-          // We need to handle three scenarios :
-          // 1) The previous Calibrations failed so the g_chrono_GPS_LOS timer is already running but has not yet expired. Pass CALIBRATION_FAIL_EV to the state machine
-          // 2) The same as 1 but the timer has expired so we need to trigger QRSS Beaconing by passing GPS_LOS_TIMEOUT_EV to the state machine. 
-          // 3) This is the first Calibration failure so we need to start the g_chrono_GPS_LOS timer and pass CALIBRATION_FAIL_EV to the state machine.
-          // For all three scenarios we want to ensure that  QRM Avoidance is disabled until we have a successful calibration completion.
-          // This helps to keep us transmitting with the 200 Hz WSPR "window". 
+          /*
+           We need to handle four scenarios :
+           
+           1) The previous Calibrations failed so the g_chrono_GPS_LOS timer is already running but has not yet expired. Pass CALIBRATION_FAIL_EV to the state machine
+           
+           2) The same as scenario 1 but the timer has expired so we need to trigger QRSS Beaconing by passing GPS_LOS_TIMEOUT_EV to the state machine. 
+           
+           3) This is the first Calibration failure so we need to start the g_chrono_GPS_LOS timer and pass CALIBRATION_FAIL_EV to the state machine.
+           
+           4) This is the first Calibration failure but it is also the Startup calibration so we want to pass STARTUP_CALIBRATION_FAIL_EV to the state machine
+              then we want to start the g_chrono_GPS_LOS timer and do a g_chrono_GPS_LOS.add(GPS_LOS_GUARD_TMO_MS + 1). This retroactively starts the timer
+              and makes it expired so that the next time around we fall into scenario # 2 to re-trigger the QRSS breaconing. STARTUP_CALIBRATION_FAIL_EV sent to
+              the state machine will trigger QRSS Beaconing. 
+          
+            For the first three scenarios we want to ensure that  QRM Avoidance is disabled until we have a successful calibration completion.
+            This helps to keep us transmitting with the 200 Hz WSPR "window". 
+          */
           
           disable_qrm_avoidance();// Failed calibration due to GPS LOS so we can't be certain we will stay within the WSPR window if we jump around.
           
           if (g_chrono_GPS_LOS.isRunning() == true){ // The GPS LOS virtual guard timer is running 
 
-            if (g_chrono_GPS_LOS.hasPassed(GPS_LOS_GUARD_TMO_MS, false) == true) {
+            if ( (g_chrono_GPS_LOS.hasPassed(GPS_LOS_GUARD_TMO_MS, false) ) == true) {
               // The GPS LOS time exceeds GPS_LOS_GUARD_TMO_M so trigger a timeout event (scenario 2)
               // We keep the GPS LOS virtual timer running so we know that we are still in LOS
+             
              action = orion_state_machine(GPS_LOS_TIMEOUT_EV);  
             }
             else { //The GPS LOS guard timer is running but hasn't expired so business as usual, but without QRM avoidance (scenario 1)
+              
               action = orion_state_machine(CALIBRATION_FAIL_EV);
             }
             
           } // end if (timer isRunning)
+          
            
-          else {// GPS_LOS guard timer is not running so start it (scenario 3) 
-            g_chrono_GPS_LOS.start(); 
-            action = orion_state_machine(CALIBRATION_FAIL_EV);
-          }
+          else { // Scenarios 3 and 4 g_chrono_GPS_LOS not running
+            
+            if ( cal_action == CALIBRATION_ACTION ) {
+              
+              // (scenario 3) GPS_LOS guard timer is not running so start it 
+              
+              g_chrono_GPS_LOS.start(); 
+             
+              action = orion_state_machine(CALIBRATION_FAIL_EV);
+              
+            }
+            else 
+              if (cal_action == STARTUP_CALIBRATION_ACTION) {
+                
+               // (scenario 4) We failed the Startup calibration so g_chrono_GPS_LOS is not yet running so start it
+     
+               g_chrono_GPS_LOS.start();
+               
+               // make it expire retroactively ..  how cool is that !
+               g_chrono_GPS_LOS.add(GPS_LOS_GUARD_TMO_MS +1); // This will ensure that next time when we fail calibration it will be handled by scenario 2. 
+               
+               action = orion_state_machine(STARTUP_CALIBRATION_FAIL_EV); // Flag it as a Startup calibration fail to trigger QRSS Beaconing
+              }
+          } // end else scenarios 3 and 4
+
+        }
           
          break;
 
@@ -569,12 +610,13 @@ OrionAction handle_calibration_result(OrionCalibrationResult cal_result) {
           // FWIW we could try to re-initialize the SI5351. If SI5351_POWER_DISABLE_SUPPORTED is support (i.e. K1FM V1.3 boards) then we could try 
           // cycling the power and reinitializing the Si531 but that is not guaranteed to work. Possible future enhancement ?
           disable_qrm_avoidance(); 
+         
           action = orion_state_machine(CALIBRATION_FAIL_EV);
           break;
 
          default : 
             swerr(20, cal_result); // Unimplemetend cal_result, we should never be here. 
-             action = orion_state_machine(CALIBRATION_DONE_EV); // so we don't get stuck here. 
+            action = orion_state_machine(CALIBRATION_DONE_EV); // so we don't get stuck here. 
             break;
         
       } // end switch (cal_result)
@@ -622,7 +664,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
       // Restore Timer1 interrupt for WSPR Transmission
       wspr_tx_interrupt_setup();
 
-      returned_action = handle_calibration_result(cal_result);
+      returned_action = handle_calibration_result(cal_result, action);
     }
     break;
 
@@ -638,7 +680,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
       // Reset the Timer1 interrupt for WSPR transmission
       wspr_tx_interrupt_setup();
 
-      returned_action = handle_calibration_result(cal_result);
+      returned_action = handle_calibration_result(cal_result, action);
     }
     break;
 
@@ -904,6 +946,8 @@ void setup() {
   digitalWrite(TX_POWER_DISABLE_PIN, HIGH); // Powered down
 #endif
 
+  g_chrono_GPS_LOS.stop(); // Note that the constructor for Chrono starts the timer automatically so we need to stop it until we actually need it. 
+  
   // Setup the software serial port for the serial monitor interface
   serial_monitor_begin();
 

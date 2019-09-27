@@ -78,12 +78,13 @@ OrionAction orion_state_machine(OrionEvent event) {
         next_action = NO_ACTION;
       }
       else { 
-        if (event == GPS_LOS_TIMEOUT_EV) { 
-          // We exceeded the guard time for GPS LOS so we switch over to QRSS transmissions
+        if ( (event == GPS_LOS_TIMEOUT_EV) || (event == STARTUP_CALIBRATION_FAIL_EV)  ) { 
+          // We exceeded the guard time for GPS LOS or we failed startup calibration so we switch over to QRSS transmissions
           orion_sm_change_state(QRSS_TX_ST);
           next_action = QRSS_TX_ACTION; // Initiate QRSS Transmission Mode until GPS AOS  
         }
         else
+        
           swerr(9, event); // Unexpected event in this state
       }
         

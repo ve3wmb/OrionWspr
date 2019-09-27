@@ -22,7 +22,7 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 
-#define ORION_FW_VERSION "v0.23a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+#define ORION_FW_VERSION "v0.24a"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
                                   // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
                                   // a = alpha b=beta, r=release
 #define OFF false
@@ -47,7 +47,7 @@
 //#define OPERATING_VOLTAGE_GUARD_TMO_MS 3600000    // Guard Timeout value for  1 hour (60,000 ms / minute x 60
 #define OPERATING_VOLTAGE_GUARD_TMO_MS 300000       // Guard Timeout value for 5 minutes (60,000 ms / minute x 5)  
 #define CALIBRATION_GUARD_TMO_MS  90000             // Guard Timeout value for 1.5 minutes (60,000 ms / minute x 1.5) 
-#define INITIAL_CALIBRATION_GUARD_TMO_MS  1800000   // Guard Timeout value for 30 minutes (60,000 ms / minute x 30)
+#define INITIAL_CALIBRATION_GUARD_TMO_MS  1200000   // Guard Timeout value for 20 minutes (60,000 ms / minute x 20)
 #define GPS_LOS_GUARD_TMO_MS              1800000   // Guard Timeout value for 30 minutes (60,000 ms / minute x 30)
 
 // Type Definitions
