@@ -61,7 +61,7 @@
   }  // end of PCINT2_vect
 #endif
 
-static bool g_debug_on_off = OFF; 
+static bool g_debug_on_off = DEBUG_MODE; 
 static bool g_txlog_on_off = ON;
 static bool g_info_log_on_off = ON;
 static bool g_qrm_avoidance_on_off = ON;

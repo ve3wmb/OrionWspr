@@ -11,18 +11,22 @@
 // while sitting on the couch watching Netflix. I happened to look out at the night sky thorough
 // the window and there was the constellation Orion staring back at me, so Orion it is.
 //
-// I wish that I could say that I came up with this code all on my own, but for the most part
+// I wish that I could say that I came up with this code all on my own, but much of 
 // it is based on excellent work done by people far more clever than I am.
 //
 // It was derived from the Simple WSPR beacon for Arduino Uno, with the Etherkit Si5351A Breakout
 // Board, by Jason Milldrum NT7S whose original code was itself based on Feld Hell beacon for Arduino by Mark
 // Vandewettering K6HX and adapted for the Si5351A by Robert Liesenfeld AK6L <ak6l@ak6l.org>.
-// Timer setup code by Thomas Knutsen LA3PNA. Time code adapted from the TimeSerial.ino example from the Time library.
+// Timer setup code by Thomas Knutsen LA3PNA. Time code was originally adapted from the TimeSerial.ino example from the Time library.
 //
 // The original Si5351 Library code (from Etherkit .. aka NT7S) was replaced by self-contained SI5315 routines
 // written Jerry Gaffke, KE7ER. The KE7ER code was modified by VE3WMB to use 64 bit precision in the calculations to
 // enable the sub-Hz resolution needed for WSPR and to allow Software I2C usage via the inclusion of <SoftWire.h>.
 //
+// The QRSS FSKCW Beacon is derived from the QRSS/FSKCW/DFCW Beacon Keyer by Hans Summers G0UPL(copyright 2012)
+// and used with his permission. The original source code is from here :
+// https://qrp-labs.com/images/qrssarduino/qrss.ino
+   
 // Code modified and added by Michael Babineau, VE3WMB for Project Aries pico-Balloon WSPR Beacon (2018/2019)
 // This additional code is Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
 
@@ -46,6 +50,7 @@
 //  number of satellites, HDOP, GPRMC and GPGGA messages.
 // NeoSWSerial (https://github.com/SlashDevin/NeoSWSerial)
 // Chrono (https://github.com/SofaPirate/Chrono) - Simple Chronometer Library
+// LowPower (https://github.com/rocketscream/Low-Power) - Lightweight Low Power Library to enable processor power management (Power Down/Save/Standby)
 //
 // License
 // -------
@@ -82,6 +87,7 @@
 #include "OrionCalibration.h"
 #include "OrionTelemetry.h"
 #include "OrionQRSS.h"
+#include <LowPower.h>
 
 // NOTE THAT ALL #DEFINES THAT ARE INTENDED TO BE USER CONFIGURABLE ARE LOCATED IN OrionXConfig.h and OrionBoardConfig.h
 // DON'T TOUCH ANYTHING DEFINED IN THIS FILE WITHOUT SOME VERY CAREFUL CONSIDERATION.
@@ -471,18 +477,32 @@ void shutdown_beacon_operation() { // Called on the reception of an INITIATE_SHU
 }
 
 bool operating_voltage_wait() {
-  Chrono volt_loop_guard_tmr; 
+  Chrono volt_loop_guard_tmr;
+  byte sleep_count =0; // x 8 seconds per sleep cycle 
   
   volt_loop_guard_tmr.start(); // Start a virtual guard time to ensure that we don't get stuck waiting forever on VCC to reach operating voltage
    
   // Loop until the measured VCC value is within operating range or the guard timer expires (call me paranoid but I don't like looping forever)
-  while(!volt_loop_guard_tmr.hasPassed(OPERATING_VOLTAGE_GUARD_TMO_MS)){ // Loop for a maximum of OPERATING_VOLTAGE_GUARD_TMO_MS
-    delay(180000); // delay 3 minutes for now, replace with code to sleep the processor using the LowPower.h library
+  while( !volt_loop_guard_tmr.hasPassed(OPERATING_VOLTAGE_GUARD_TMO_MS) ){ // Loop for a maximum of OPERATING_VOLTAGE_GUARD_TMO_MS
+    
+    // To conserve power to let the battery or supercap charge faster we power down the processor for about 10 minutes 
+    sleep_count = 0; 
+    while (sleep_count < 75){ // Sleep/Wake for 10 minutes (75 x 8 seconds)
+      
+      //Power Down for 8 seconds
+      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_ON); // Enter power down state for 8 s with ADC disabled but Brown out detection still on. 
+      
+      // Now we are awake
+      sleep_count++; 
+    }
+    
+    volt_loop_guard_tmr.add(600000); // We need to account for the 10 minutes we were mostly powered down so add this to the guard timer
     
     if (read_voltage_v_x10() >= OPERATING_VOLTAGE_Vx10) return true;  // Operating voltage achieved     
   }
   
   volt_loop_guard_tmr.stop();
+  
   return false; // volt_loop_guard_tmr timed out 
    
 } // end operating_voltage_wait

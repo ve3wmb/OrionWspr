@@ -1,13 +1,13 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.24a
+Consider this to be Alpha Software. Current version is: v0.25a
  
 
 Current compile stats are:
 
-Sketch uses 26426 bytes or 86% (previously 85%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1301 bytes or 63% (previously 63%) of dynamic memory, leaving 747 bytes for local variables. 
+Sketch uses 26654 bytes or 86% (previously 86%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1302 bytes or 63% (previously 63%) of dynamic memory, leaving 746 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -23,6 +23,10 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.25a - Changes to use LowPower.h library to enable processor power management (PowerDown) while in WAIT_OP_VOLTAGE_ST.
+Added #define DEBUG_MODE true/false to OrionXConfig to set the variable  g_debug_on_off = DEBUG_MODE to more easily
+control the switching of DEBUG off and on at startup (it can still be switched off via the serial monitor.) 
 
 v0.24a - Code added to cover GPS LOS scenaro #4 where calibration_guard_tmr (INITIAL_CALIBRATION_GUARD_TMO_MS) expires 
 before g_chrono_GPS_LOS (GPS_LOS_GUARD_TMO_MS). Also added g_chrono_GPS_LOS.stop() to setup() as default for Chrono
