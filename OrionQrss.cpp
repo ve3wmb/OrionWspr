@@ -7,7 +7,7 @@
    and used his permission for this derivitive work. The original source code is from here :
    https://qrp-labs.com/images/qrssarduino/qrss.ino
 
-   Adapted by Michael, VE3WMB to use the Si5351a as a transmitter. 
+   Adapted by Michael, VE3WMB to use the Si5351a as a transmitter.
 
    Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
 
@@ -24,7 +24,6 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <int.h>
 #include "OrionXConfig.h"
 #include "OrionBoardConfig.h"
 #include "OrionSi5351.h"
@@ -34,21 +33,21 @@
 
 const char msg[] = QRSS_MESSAGE; // Defined in OrionQrss.h
 
-// This array is indexed by a parameter of type QrssSpeed, defined in OrionQrss.h
+// This array is indexed by a parameter of type QrssSpeed, defined in OrionXConfig.h
 const unsigned int speeds[] = {1, 30, 60, 100};   // Speeds for: s12wpm, QRSS3, QRSS6, QRSS10
 
 
 byte charCode(char c) {
 
-// This function returns the encoded CW pattern for the character passed in.
-// Binary encoding is left-padded. Unused high-order bits are all ones.
-// The first zero is the start bit, which is discarded.
-// Processing from higher to lower order, bits we skip over ones, then discard first 0 (start bit). The next bit is the first element.
-// We process each element sending a DIT or DAH, until we reach the end of the pattern.
-//
-// Pattern encoding is 0 = DIT, 1 = DAH.
-// So 'A' = B11111001, which is 1 1 1 1 1 (padding bits) 0 (start bit)  0 1 (dit, dah)
-// This excellent encoding scheme was developed by Hans, G0UPL as noted above.
+  // This function returns the encoded CW pattern for the character passed in.
+  // Binary encoding is left-padded. Unused high-order bits are all ones.
+  // The first zero is the start bit, which is discarded.
+  // Processing from higher to lower order, bits we skip over ones, then discard first 0 (start bit). The next bit is the first element.
+  // We process each element sending a DIT or DAH, until we reach the end of the pattern.
+  //
+  // Pattern encoding is 0 = DIT, 1 = DAH.
+  // So 'A' = B11111001, which is 1 1 1 1 1 (padding bits) 0 (start bit)  0 1 (dit, dah)
+  // This excellent encoding scheme was developed by Hans, G0UPL as noted above.
 
   switch (c)
   {

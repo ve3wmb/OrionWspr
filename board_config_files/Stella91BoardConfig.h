@@ -27,42 +27,10 @@
 
 #define BOARDNAME " - STELLA 9.1"        // This string is output along with code version using the 'v' command in the monitor
 /*
-** Note: When using a previously unprogrammed ATMega chip it is important to "burn bootloader" first so that the fuses are set correctly
-** Use Arduino Pro Mini 3.3v / 8 Mhz as Board / Processor Type for 3.3 v operation. 
-**
-** ATMEL AVR in circuit programming (ISP) header pinout (view from top of header)
-** 
-**         6 pin                    10 pin 
-**         +----+                   +----+    
-**    MISO |1  2| VCC          MOSI |1  2| VCC
-**     SCK |3  4| MOSI     (unused) |3  4| GND
-**   RESET |5  6| GND         RESET |5  6| GND
-**         +----+               SCK |7  8| GND
-**                             MISO |9 10| GND
-**                                  +----+
-** 
-** 
-**  Arduino Function                            ATMega168/328                      Arduino Function
-** 	                                              +---v---+
-** 	reset		      		(PCINT14/RESET)   PC6 |1    28| PC5 (ADC5/SCL/PCINT13) analog input A5
-**  digital pin D0 (RX)	        (PCINT16/RXD) PD0 |2    27| PC4 (ADC4/SDA/PCINT12) analog input A4
-**  digital pin D1 (TX)         (PCINT17/TXD) PD1 |3    26| PC3 (ADC3/PCINT11)     analog input A3 
-**  digital pin D2             (PCINT18/INT0) PD2 |4    25| PC2 (ADC2/PCINT10)     analog input A2
-**  digital pin D3 (PWM)  (PCint19/OC2B/INT1) PD3 |5    24| PC1 (ADC1/PCINT9)      analog input A1 
-**  digital pin D4           (PCINT20/XCK/T0) PD4 |6    23| PC0 (ADC0/PCINT8)      analog input A0
-**  VCC                                       VCC |7    22| GND                    GND
-**  GND                                       GND |8    21| AREF                   analog reference
-**  crystal              (PCINT6/XTAL1/TOSC1) PB6 |9    20| AVCC                   analog VCC
-**  crystal              (PCINT7/XTAL2/TOSC2) PB7 |10   19| PB5 (SCK/PCINT5)       digital pin D13
-**  digital pin D5 (PWM)    (PCINT21/OC0B/T1) PD5 |11   18| PB4 (MISO/PCINT4)      digital pin D12
-**  digital pin D6 (PWM)  (PCINT22/OC0A/AIN0) PD6 |12   17| PB3 (MOSI/OC2A/PCINT3) digital pin D11 (PWM)
-**  digital pin D7             (PCINT23/AIN1) PD7 |13   16| PB2 (SS/OC1B/PCINT2)   digital pin D10 (PWM)
-**  digital pin D8         (PCINTO/CKLO/ICP1) PB0 |14   15| PB1 (OC1A/PCINT1)      digital pin D9  (PWM)
-**                                                +-------+
-**
-**  
+// Note: When using a previously unprogrammed ATMega chip it is important to "burn bootloader" first so that the fuses are set correctly
+// Use Arduino Pro Mini 3.3v / 8 Mhz as Board / Processor Type for 3.3 v operation. 
 
-
+/*
 DL6OW Stella boards Pin Configuration
 
 atmega328 pin #                                    

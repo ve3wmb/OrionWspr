@@ -1,6 +1,8 @@
 /*
- * OrionSi5351.cpp - Control functions for the Si5351a chip via I2C 
- * (software I2C assumed for compatibiltiy with the QRP Labs U3S and clones).
+   OrionSi5351.cpp - Control functions for the Si5351a chip via I2C
+   Both software and hardware I2C communication are supported via conditional
+   compile using the parameter SI5351A_USES_SOFTWARE_I2C defined in
+   OrionBoardConfig.h .
 
    Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
 
@@ -23,9 +25,9 @@
 #include "OrionSi5351.h"
 
 #if defined (SI5351A_USES_SOFTWARE_I2C)
-  #include <SoftWire.h>  // Needed for Software I2C otherwise include <Wire.h>
+#include <SoftWire.h>  // Needed for Software I2C otherwise include <Wire.h>
 #else
-  #include <Wire.h> 
+#include <Wire.h>
 #endif
 
 uint64_t si5351bx_vcoa = (SI5351BX_XTAL*SI5351BX_MSA);  // 25mhzXtal calibrate
@@ -36,27 +38,29 @@ uint8_t  si5351bx_clken = 0xFF;         // Private, all CLK output drivers off
 
 // Create an instance of Softwire named Wire if using Software I2C
 #if defined (SI5351A_USES_SOFTWARE_I2C)
-  SoftWire Wire = SoftWire();
+SoftWire Wire = SoftWire();
 #endif
 
 /** *************  SI5315 routines - (tks Jerry Gaffke, KE7ER)   ***********************
    A minimalist standalone set of Si5351 routines originally written by Jerry Gaffke, KE7ER
    but modified by VE3WMB for use with Software I2C and to provide sub-Hz resolution for WSPR
    transmissions. .
-   
+
    VCOA is fixed at 875mhz, VCOB not used.
    The output msynth dividers are used to generate 3 independent clocks
    with 1hz resolution to any frequency between 4khz and 109mhz.
-   
+
    Usage:
    Call si5351bx_init() once at startup with no args;
-   
-   Call si5351bx_setfreq(clknum, freq) each time one of the
+
+   Call si5351bx_setfreq(clknum, freq, tx_on) each time one of the
    three output CLK pins is to be updated to a new frequency.
-   
-   A freq of 0 serves to shut down that output clock or alternately a
+   The bool tx_on determines whether the clock is enabled after the
+   frequency change.
+
+   A freq of 0 also serves to shut down that output clock or alternately a
    call to si5351bx_enable_clk(uint8_t clk_num, bool on_off)
-   
+
    The global variable si5351bx_vcoa starts out equal to the nominal VCOA
    frequency of 25mhz*35 = 875000000 Hz.  To correct for 25mhz crystal errors,
    the user can adjust this value.  The vco frequency will not change but
@@ -64,103 +68,16 @@ uint8_t  si5351bx_clken = 0xFF;         // Private, all CLK output drivers off
    Example:  We call for a 5mhz signal, but it measures to be 5.001mhz.
    So the actual vcoa frequency is 875mhz*5.001/5.000 = 875175000 Hz,
    To correct for this error:     si5351bx_vcoa=875175000;
-   
+
    Most users will never need to generate clocks below 500khz.
    But it is possible to do so by loading a value between 0 and 7 into
    the global variable si5351bx_rdiv, be sure to return it to a value of 0
    before setting some other CLK output pin.  The affected clock will be
    divided down by a power of two defined by  2**si5351_rdiv
-   
+
    A value of zero gives a divide factor of 1, a value of 7 divides by 128.
    This lightweight method is a reasonable compromise for a seldom used feature.
 */
-
-// Turn the specified clock number on or off. 
-void si5351bx_enable_clk(uint8_t clk_num, bool on_off) {
-    if (on_off == SI5351_CLK_OFF ) { // Off Disable ClK 
-      si5351bx_clken |= 1 << clk_num;      //  Set Bit to shut down the clock
-    }
-    else {  // Enable CLK
-      si5351bx_clken &= ~(1 << clk_num);   // Clear bit to enable clock
-    }
-   i2cWrite(3, si5351bx_clken);   
-}
-
-// Initialize the Si5351a 
-void si5351bx_init() {                  // Call once at power-up, start PLLA
-  uint8_t reg;  uint32_t msxp1;
-  Wire.begin();
-  i2cWrite(149, 0);                     // SpreadSpectrum off
-  i2cWrite(3, si5351bx_clken);          // Disable all CLK output drivers
-  i2cWrite(183, ((SI5351BX_XTALPF << 6) | 0x12)); // Set 25mhz crystal load capacitance (tks Daniel KB3MUN)
-  msxp1 = 128 * SI5351BX_MSA - 512;     // and msxp2=0, msxp3=1, not fractional
-  uint8_t  vals[8] = {0, 1, BB2(msxp1), BB1(msxp1), BB0(msxp1), 0, 0, 0};
-  i2cWriten(26, vals, 8);               // Write to 8 PLLA msynth regs
-  i2cWrite(177, 0x20);                  // Reset PLLA  (0x80 resets PLLB)
-}
-
-// Set the frequency correction factor - needed for self-calibration
-void si5351bx_set_correction(int32_t corr) {
-  si5351_correction = corr; 
-}
-
-// Set the frequency for the specified clock number
-// Note that fout is in hertz x 100 (i.e. hundredths of hertz). 
-// Frequency range must be between 500 Khz and 109 Mhz
-// An fout value of 0 will shutdown the specified clock.
-
-void si5351bx_setfreq(uint8_t clknum, uint64_t fout, bool tx_on)
-{
-  // Note that I am not being lazy here in naming variables. If you refer to SiLabs 
-  // application note AN619 - "Manually Generating an Si5351 Register Map", the formulas
-  // within refer to calculating values named a,b,c and p1, p2, p3. 
-  // For consistency I continue to use the same notation, even though the calculations appear
-  // a bit cryptic. 
-  uint64_t a,b,c, ref_freq;
-  uint32_t p1, p2, p3;
-  uint8_t vals[8];
-
-  if ((fout < 50000000) || (fout > 10900000000)) {  // If clock freq out of range 500 Khz to 109 Mhz
-    si5351bx_clken |= 1 << clknum;      //  shut down the clock
-    i2cWrite(3, si5351bx_clken);
-  }
-  
-  else {
-    
-    // Determine the integer part of feedback equation
-    ref_freq = si5351bx_vcoa;
-    ref_freq = ref_freq + (int32_t)((((((int64_t)si5351_correction) << 31) / 1000000000LL) * ref_freq) >> 31);
-    a = ref_freq / fout;
-    b = (ref_freq % fout * RFRAC_DENOM) / fout;
-    c = b ? RFRAC_DENOM : 1;
-  
-    p1 = 128 * a + ((128 * b) / c) - 512;
-    p2 = 128 * b - c * ((128 * b) / c);
-    p3 = c;
-
-    // Setup the bytes to be sent to the Si5351a register
-    vals[0] = (p3 & 0x0000FF00) >> 8;
-    vals[1] = p3 & 0x000000FF;
-    vals[2] = (p1 & 0x00030000) >> 16;
-    vals[3] = (p1 & 0x0000FF00) >> 8;
-    vals[4]= p1 & 0x000000FF;
-    vals[5] = (((p3 & 0x000F0000) >> 12) | ((p2 & 0x000F0000) >> 16));
-    vals[6] = (p2 & 0x0000FF00) >> 8;
-    vals[7] = p2 & 0x000000FF;
-    i2cWriten(42 + (clknum * 8), vals, 8); // Write to 8 msynth regs
-    i2cWrite(16 + clknum, 0x0C | si5351bx_drive[clknum]); // use local msynth
-
-    if (tx_on == true) 
-      si5351bx_clken &= ~(1 << clknum);   // Clear bit to enable clock
-    else
-      si5351bx_clken |= 1 << clknum;      //  Set bit to shut down the clock
-
-   i2cWrite(3, si5351bx_clken); // Enable/disable clock
-  }
-  
-          
-
-}
 
 // Write a single 8 bit value to an Si5351a register address
 void i2cWrite(uint8_t reg, uint8_t val) {   // write reg via i2c
@@ -178,6 +95,89 @@ void i2cWriten(uint8_t reg, uint8_t *vals, uint8_t vcnt) {  // write array
   Wire.endTransmission();
 }
 
+// Turn the specified clock number on or off.
+void si5351bx_enable_clk(uint8_t clk_num, bool on_off) {
+  if (on_off == SI5351_CLK_OFF ) { // Off Disable ClK
+    si5351bx_clken |= 1 << clk_num;      //  Set Bit to shut down the clock
+  }
+  else {  // Enable CLK
+    si5351bx_clken &= ~(1 << clk_num);   // Clear bit to enable clock
+  }
+  i2cWrite(3, si5351bx_clken);
+}
+
+// Initialize the Si5351a
+void si5351bx_init() {                  // Call once at power-up, start PLLA
+  uint8_t reg;  uint32_t msxp1;
+  Wire.begin();
+  i2cWrite(149, 0);                     // SpreadSpectrum off
+  i2cWrite(3, si5351bx_clken);          // Disable all CLK output drivers
+  i2cWrite(183, ((SI5351BX_XTALPF << 6) | 0x12)); // Set 25mhz crystal load capacitance (tks Daniel KB3MUN)
+  msxp1 = 128 * SI5351BX_MSA - 512;     // and msxp2=0, msxp3=1, not fractional
+  uint8_t  vals[8] = {0, 1, BB2(msxp1), BB1(msxp1), BB0(msxp1), 0, 0, 0};
+  i2cWriten(26, vals, 8);               // Write to 8 PLLA msynth regs
+  i2cWrite(177, 0x20);                  // Reset PLLA  (0x80 resets PLLB)
+}
+
+// Set the frequency correction factor - needed for self-calibration
+void si5351bx_set_correction(int32_t corr) {
+  si5351_correction = corr;
+}
+
+// Set the frequency for the specified clock number
+// Note that fout is in hertz x 100 (i.e. hundredths of hertz).
+// Frequency range must be between 500 Khz and 109 Mhz
+// An fout value of 0 will shutdown the specified clock.
+
+void si5351bx_setfreq(uint8_t clknum, uint64_t fout, bool tx_on)
+{
+  // Note that I am not being lazy here in naming variables. If you refer to SiLabs
+  // application note AN619 - "Manually Generating an Si5351 Register Map", the formulas
+  // within refer to calculating values named a,b,c and p1, p2, p3.
+  // For consistency I continue to use the same notation, even though the calculations appear
+  // a bit cryptic.
+  uint64_t a, b, c, ref_freq;
+  uint32_t p1, p2, p3;
+  uint8_t vals[8];
+
+  if ((fout < 50000000) || (fout > 10900000000)) {  // If clock freq out of range 500 Khz to 109 Mhz
+    si5351bx_clken |= 1 << clknum;      //  shut down the clock
+    i2cWrite(3, si5351bx_clken);
+  }
+
+  else {
+
+    // Determine the integer part of feedback equation
+    ref_freq = si5351bx_vcoa;
+    ref_freq = ref_freq + (int32_t)((((((int64_t)si5351_correction) << 31) / 1000000000LL) * ref_freq) >> 31);
+    a = ref_freq / fout;
+    b = (ref_freq % fout * RFRAC_DENOM) / fout;
+    c = b ? RFRAC_DENOM : 1;
+
+    p1 = 128 * a + ((128 * b) / c) - 512;
+    p2 = 128 * b - c * ((128 * b) / c);
+    p3 = c;
+
+    // Setup the bytes to be sent to the Si5351a register
+    vals[0] = (p3 & 0x0000FF00) >> 8;
+    vals[1] = p3 & 0x000000FF;
+    vals[2] = (p1 & 0x00030000) >> 16;
+    vals[3] = (p1 & 0x0000FF00) >> 8;
+    vals[4] = p1 & 0x000000FF;
+    vals[5] = (((p3 & 0x000F0000) >> 12) | ((p2 & 0x000F0000) >> 16));
+    vals[6] = (p2 & 0x0000FF00) >> 8;
+    vals[7] = p2 & 0x000000FF;
+    i2cWriten(42 + (clknum * 8), vals, 8); // Write to 8 msynth regs
+    i2cWrite(16 + clknum, 0x0C | si5351bx_drive[clknum]); // use local msynth
+
+    if (tx_on == true)
+      si5351bx_clken &= ~(1 << clknum);   // Clear bit to enable clock
+    else
+      si5351bx_clken |= 1 << clknum;      //  Set bit to shut down the clock
+
+    i2cWrite(3, si5351bx_clken); // Enable/disable clock
+  }
 
 
-// *********** End of Jerry's si5315bx routines *********************************************************
+
+}

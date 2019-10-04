@@ -19,8 +19,8 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "OrionXConfig.h"
-#include <Chrono.h>
 
+// Correction Steps for Huff and Puff algorithm used for self calibration
 #define FINE_CORRECTION_STEP   10     // 0.1 HZ step
 #define COARSE_CORRECTION_STEP 100   // 1 Hz step
 

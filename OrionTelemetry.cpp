@@ -16,14 +16,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-//#include <int.h>
+
 #include "OrionXConfig.h"
 #include "OrionBoardConfig.h"
 #include "OrionSerialMonitor.h"
 
 #if defined (DS1820_TEMP_SENSOR_PRESENT)
-  #include <OneWire.h>
-  #include <DallasTemperature.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 #endif
 
 #if defined (DS1820_TEMP_SENSOR_PRESENT)
@@ -53,43 +53,40 @@ int read_voltage_v_x10() {
   int AdcCount, i, voltage_v_x10;
   float Vpower, sum;
 
-if (VCC_SAMPLING_SUPPORTED == true) {
+  if (VCC_SAMPLING_SUPPORTED == true) {
 
-  sum = 0; 
+    sum = 0;
 
-  analogReference(DEFAULT); // ensure that we are using the default 3.3v voltage reference for ADC
-  
-  // Do a few throw-away reads before the real ones so things can settle down
-  for (i = 0; i < 5; i++) {
-    AdcCount = analogRead(Vpwerbus); // read Vpwerbus
+    analogReference(DEFAULT); // ensure that we are using the default 3.3v voltage reference for ADC
+
+    // Do a few throw-away reads before the real ones so things can settle down
+    for (i = 0; i < 5; i++) {
+      AdcCount = analogRead(Vpwerbus); // read Vpwerbus
+    }
+
+    // Read the voltage 10 times so we can calculate an average
+    for (i = 0; i < 10; i++) {
+
+      // Arduino 10bit ADC; 3.3v external AREF each count of 1 = 0.00322265625V
+      AdcCount = analogRead(Vpwerbus); // read Vpwerbus
+      Vpower = AdcCount * 0.00322 * VpwerDivider;
+      sum = sum + Vpower ;
+    }
+
+    Vpower = sum / 10.0; // Calculate the average of the 10 voltage samples
+
+    // Shift the voltage one decimal place to the left and convert to an int
+    voltage_v_x10 = (int) (Vpower * 10); // i.e. This converts 3.3333 volt reading to 33 representing 3.3 v
   }
-   
-  // Read the voltage 10 times so we can calculate an average
-  for (i = 0; i < 10; i++) {
 
-    // Arduino 10bit ADC; 3.3v external AREF each count of 1 = 0.00322265625V
-    AdcCount = analogRead(Vpwerbus); // read Vpwerbus
-    Vpower = AdcCount * 0.00322 * VpwerDivider;
-    sum = sum + Vpower ;
+  else { // VCC_SAMPLING_SUPPORTED == false
+
+    // Just return the defined OPERATING_VOLTAGE_Vx10 value
+    voltage_v_x10 = OPERATING_VOLTAGE_Vx10;
+
   }
+  return voltage_v_x10;
 
-  Vpower = sum / 10.0; // Calculate the average of the 10 voltage samples
-
-  // Shift the voltage one decimal place to the left and convert to an int
-  voltage_v_x10 = (int) (Vpower * 10); // i.e. This converts 3.3333 volt reading to 33 representing 3.3 v
-}
-  
-else { // VCC_SAMPLING_SUPPORTED == false
-
-  // Just return the defined OPERATING_VOLTAGE_Vx10 value
-  voltage_v_x10 = OPERATING_VOLTAGE_Vx10;
-  
-}
-   
-
-
-return voltage_v_x10;
- 
 }
 
 int read_processor_temperature() {
@@ -129,9 +126,9 @@ uint8_t encode_temperature (int temperature_c) {
 
   // Encoding of Temperature for PWR/dBm Field
 
-  switch ( temperature_c ){
-  
-    case 35 ... 100: // aka >= 35 celsius 
+  switch ( temperature_c ) {
+
+    case 35 ... 100: // aka >= 35 celsius
       ret_value = 0;
       break;
 
@@ -213,81 +210,81 @@ uint8_t encode_temperature (int temperature_c) {
 
 uint8_t encode_voltage (int voltage_v_x10) {
   uint8_t ret_value = 0;
-  
-  switch ( voltage_v_x10 ){  // Note: Divide voltage_v_x10 by 10 to get the actual voltage (i.e 36 = 3.6 v)
-  
-    case 33 : // aka >= 3.3 volts 
+
+  switch ( voltage_v_x10 ) { // Note: Divide voltage_v_x10 by 10 to get the actual voltage (i.e 36 = 3.6 v)
+
+    case 33 : // aka >= 3.3 volts
       ret_value = 0;
       break;
-      
+
     case 34 :
       ret_value = 3;
       break;
-      
+
     case 35 :
       ret_value = 7;
       break;
-      
+
     case 36 :
       ret_value = 10;
       break;
-      
+
     case 37 :
       ret_value = 13;
       break;
-      
+
     case 38 :
       ret_value = 17;
       break;
-      
+
     case 39 :
       ret_value = 20;
       break;
-      
+
     case 40 :
       ret_value = 23;
       break;
-      
+
     case 41 :
       ret_value = 27;
       break;
-      
+
     case 42 :
       ret_value = 30;
       break;
-      
+
     case 43 :
       ret_value = 33;
       break;
-      
+
     case 44 :
       ret_value = 37;
       break;
-      
+
     case 45 :
       ret_value = 40;
       break;
-      
+
     case 46 :
       ret_value = 43;
       break;
-      
+
     case 47 :
       ret_value = 47;
       break;
-      
+
     case 48 :
       ret_value = 50;
       break;
-      
+
     case 49 :
       ret_value = 53;
       break;
-      
+
     case 50 :
       ret_value = 57;
       break;
-      
+
     default: // greater than 5 volts
       ret_value = 60;
       break;
@@ -303,10 +300,10 @@ uint8_t encode_altitude (int altitude_m) {
 
   // Encoding of altitude in metres for PWR/dBm Field
   // Note that on both ends of the scale the resolution is 500m whereas mid-scale it
-  // changes to 1000m resolution. 
- 
-  switch (altitude_m) { 
-    
+  // changes to 1000m resolution.
+
+  switch (altitude_m) {
+
     case 0 ... 499 :
       ret_value = 0;
       break;
@@ -386,9 +383,9 @@ uint8_t encode_altitude (int altitude_m) {
   return ret_value;
 }
 
-// This function implements the KISS Telemetry scheme proposed by VE3GTC.
+// This function implements the KISS position Telemetry scheme proposed by VE3GTC.
 // We use the PWR/dBm field in the WSPR Type 1 message to encode the 5th and 6th characters of the
-// 6 character Maidenehad Grid Square, following the WSPR encoding rules for this field.
+// 6 character Maidenhead Grid Square, following the WSPR encoding rules for this field.
 // The 6 Character Grid Square is calculated from the GPS supplied Latitude and Longitude.
 // A four character grid square is 1 degree latitude by 2 degrees longitude or approximately 60 nautical miles
 // by 120 nautical miles respectively (at the equator). This scheme increases resolution to 1/3 of degree

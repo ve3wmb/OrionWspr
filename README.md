@@ -1,13 +1,13 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.25a
+Consider this to be Alpha Software. Current version is: v0.26a
  
 
 Current compile stats are:
 
-Sketch uses 26654 bytes or 86% (previously 86%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1302 bytes or 63% (previously 63%) of dynamic memory, leaving 746 bytes for local variables. 
+Sketch uses 26886 bytes or 87% (previously 86%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1300 bytes or 63% (previously 63%) of dynamic memory, leaving 748 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -23,6 +23,9 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.26a - Minor changes to remove extraneous code and variables, fix and add additional code comments. Introduce an
+info() log to replace some instances of swerr() that should still be logged, but are not actually software errors().
 
 v0.25a - Changes to use LowPower.h library to enable processor power management (PowerDown) while in WAIT_OP_VOLTAGE_ST.
 Added #define DEBUG_MODE true/false to OrionXConfig to set the variable  g_debug_on_off = DEBUG_MODE to more easily

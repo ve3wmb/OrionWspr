@@ -8,19 +8,18 @@ This allows the Orion WSPR beacon to run a number of different boards including 
 as well as K1FM PicoB boards. Be sure to make the necessary changes to #defines to describe
 your board configuration (better documentation to come later). 
 
+Note that the value for SI5351A_CLK_FREQ_CORRECTION is derived from self-calibration.
+On a new board start with a value of 0. (i.e. #define SI5351A_CLK_FREQ_CORRECTION 0).
 
-Note that the value for SI5351A_CLK_FREQ_CORRECTION is derived by doing a manual calibration of the
-Si5351a by loading the OrionSi5351aCalibration sketch (https://github.com/ve3wmb/OrionSi5351aCalibration)
-if the board uses software I2C and software serial for debug. Use the original Etherkit Si5351Arduino calibration
-sketch found in the examples folder for the Etherkit Si5351 Library for boards using hardware I2C and hardware serial.
-  (https://github.com/etherkit/Si5351Arduino/tree/master/examples/si5351_calibration).
+Once the beacon has been running for a while you can note when calibration is at or very close to
+the 3.2 Mhz test signal value. Note the correction factor (could be negative) and substitute that for 
+SI5351A_CLK_FREQ_CORRECTION. Now recompile and reload. This value might change a bit over time 
+but it will allow the Si5351a to come up fairly close to the target frequency and self-calibration
+won't have to work so hard and long to get it on frequency. 
 
-This also requires that the Etherkit library be installed (https://github.com/etherkit/Si5351Arduino). 
+If you fail to preperly set SI5351A_CLK_FREQ_CORRECTION you will likely be far enough off frequency with your
+WSPR transmissions that you will fall outside of the 200Hz wide WSPR transmission window on startup and no one will
+copy your signal until a number of self-calibration cycles adjusts the frequency.  
 
-If you fail to do an initial calibration you will likely be far enough off frequency with your
-WSPR transmissions that you will fall outside of the 200Hz wide WSPR transmission window and no one will
-copy your signal. 
-
-Manual calibration should be a temporary thing until the Orion Self-Calibration feature is completed.
 
 VE3WMB 

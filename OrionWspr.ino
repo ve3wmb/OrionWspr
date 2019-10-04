@@ -8,7 +8,7 @@
 //
 // Why is it called Orion?
 // Serendipity! I was trying to think of a reasonable short name for this code one evening
-// while sitting on the couch watching Netflix. I happened to look out at the night sky thorough
+// while sitting on the couch watching Netflix. I happened to look out at the night sky through
 // the window and there was the constellation Orion staring back at me, so Orion it is.
 //
 // I wish that I could say that I came up with this code all on my own, but much of 
@@ -48,7 +48,8 @@
 // SoftI2CMaster (Software I2C with SoftWire wrapper) https://github.com/felias-fogg/SoftI2CMaster/blob/master/SoftI2CMaster.h - (assumes that you are using Software I2C otherwise Wire.h)
 // NeoGps (https://github.com/SlashDevin/NeoGPS) - NMEA and uBlox GPS parser using Nominal Configuration : date, time, lat/lon, altitude, speed, heading,
 //  number of satellites, HDOP, GPRMC and GPGGA messages.
-// NeoSWSerial (https://github.com/SlashDevin/NeoSWSerial)
+// NeoSWSerial (https://github.com/SlashDevin/NeoSWSerial) {Also note that you must uncomment the third last line in NeoSWSerial.h
+// which is #define NEOSWSERIAL_EXTERNAL_PCINT, othewise you will have linking errors).
 // Chrono (https://github.com/SofaPirate/Chrono) - Simple Chronometer Library
 // LowPower (https://github.com/rocketscream/Low-Power) - Lightweight Low Power Library to enable processor power management (Power Down/Save/Standby)
 //
@@ -75,7 +76,6 @@
 //
 
 #include <JTEncode.h>
-#include <int.h>
 #include <NMEAGPS.h>  // NeoGps
 #include <TimeLib.h>
 #include <Chrono.h>
@@ -119,11 +119,9 @@ static gps_fix fix;
 bool g_gps_power_state = OFF;
 bool g_gps_time_ok = false; // This boolean is used to determine if we truly have a good time fix from the GPS to set the clock.
 
-// Time & GPS related
 // Note that the constructor for Chrono automatically starts the timer so we need to do a g_chrono_GPS_LOS.stop() in setup()
-// We will then start this timer later when we need it.
+// We will then start this timer later when we need it to track how long we have been in a GPS LOS (loss of signal) scenario.
 Chrono g_chrono_GPS_LOS;
-
 
 // If we are using software serial to talk to the GPS then we need to create an instance of NeoSWSerial and
 // provide the RX and TX Pin numbers.
@@ -141,9 +139,7 @@ unsigned long g_beacon_freq_hz = FIXED_BEACON_FREQ_HZ;      // The Beacon Freque
 // Raw Telemetry data types define in OrionTelemetry.h
 // This contains the last validated Raw telemetry for use during GPS LOS (i.e. we use the last valid data if current data is missing)
 struct OrionTelemetryData g_last_valid_telemetry = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-struct OrionTelemetryData g_orion_current_telemetry {
-  0, 0, 0, 0, 0, 0, 0, 0, 0
-};
+struct OrionTelemetryData g_orion_current_telemetry {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // This differs from OrionTelemetryData mostly in that the values are reformatted with the correct units (i.e altitude in metres vs cm etc.)
 // It is used to populate the global values below prior to encoding the WSPR message for TX
@@ -176,7 +172,7 @@ unsigned long get_tx_frequency() {
   /********************************************************************************
     Get the frequency for the next transmission cycle
     This function also implements the QRM Avoidance feature
-    which applies a pseudo-random offset of 0 to 100 hz to the base TX frequency
+    which applies a pseudo-random offset of 0 to 180 hz to the base TX frequency
   ********************************************************************************/
   if (is_qrm_avoidance_on() == false)
     return FIXED_BEACON_FREQ_HZ;
@@ -322,7 +318,6 @@ void set_tx_data() {
   g_tx_data.speed_kn = g_orion_current_telemetry.speed_mkn / 1000;   // covert from thousandths of a knot to knots
   g_tx_data.number_of_sats = g_orion_current_telemetry.number_of_sats;
   g_tx_data.gps_status = g_orion_current_telemetry.gps_status;
-  //g_tx_data.gps_3d_fix_ok_bool = (bool)g_orion_current_telemetry.gps_status_ok;
   g_tx_data.temperature_c = g_orion_current_telemetry.temperature_c;
   g_tx_data.processor_temperature_c = g_orion_current_telemetry.processor_temperature_c;
   g_tx_data.battery_voltage_v_x10 = g_orion_current_telemetry.battery_voltage_v_x10;
@@ -485,12 +480,13 @@ bool operating_voltage_wait() {
   // Loop until the measured VCC value is within operating range or the guard timer expires (call me paranoid but I don't like looping forever)
   while( !volt_loop_guard_tmr.hasPassed(OPERATING_VOLTAGE_GUARD_TMO_MS) ){ // Loop for a maximum of OPERATING_VOLTAGE_GUARD_TMO_MS
     
-    // To conserve power to let the battery or supercap charge faster we power down the processor for about 10 minutes 
+    // To conserve power to let the battery or supercap charge faster we power down the processor for about 10 minutes,
+    // in 8s intervals (the max) over the 10 minutes. Wakeup is automatic via 8 second WDC (watch dog counter). 
     sleep_count = 0; 
     while (sleep_count < 75){ // Sleep/Wake for 10 minutes (75 x 8 seconds)
       
-      //Power Down for 8 seconds
-      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_ON); // Enter power down state for 8 s with ADC disabled but Brown out detection still on. 
+      //Power Down for 8 seconds - we wake up automatically via the WDC
+      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_ON); // Enter power down state for 8 s with ADC disabled but Brown-Out detection still on. 
       
       // Now we are awake
       sleep_count++; 
@@ -799,7 +795,12 @@ OrionAction process_orion_sm_action (OrionAction action) {
           returned_action = orion_state_machine(SETUP_DONE_EV);
        }
        else { // Current VCC is less than OPERATING_VOLTAGE_Vx10
+
+          // We loop inside operating_voltage_wait(), sleeping the processor and checking voltage every 10 minutes
+          // until operating voltage is reached or we timeout.
           operating_voltage_wait();
+
+          // Either the voltage is now ok or we gave up waiting due to timeout
           setup_si5351_and_gps(); // complete setup
           returned_action = orion_state_machine(SETUP_DONE_EV);
        }
@@ -812,6 +813,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
         
     default :
       returned_action = NO_ACTION;
+      swerr(40, action); // Unimplemented action 
       break;
 
 
@@ -880,7 +882,7 @@ OrionAction orion_scheduler() {
         case 39 :
         case 49 :
         case 59 :
-          // If are one minute prior to a scheduled Beacon Transmission, trigger collection of new telemetry info, but first reset the system time from the GPS.
+          // If we are one minute prior to a scheduled Beacon Transmission, trigger collection of new telemetry info, but first reset the system time from the GPS.
           // We set the time here to try to minimize the delta between getting the time fix and setting the Orion system clock. This also lets us
           // synchronize the regular setting of the clock with the beacon TX schedule so there is no overlap (resulting in lost events) and we have accurate
           // clock time for each TX cycle.

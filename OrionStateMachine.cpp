@@ -23,27 +23,17 @@
 
 
 OrionState g_current_orion_state = POWERUP_ST;
-OrionState g_previous_orion_state = POWERUP_ST;
 OrionEvent g_current_orion_event = NO_EV;
-OrionEvent g_previous_orion_event = NO_EV;
 
-
-void orion_sm_no_op () {
-  // Placeholder
-}
 
 // State Machine Initializationto be called once in setup()
 void orion_sm_begin() {
   // Start out in the initial state
   g_current_orion_state = POWERUP_ST;
-  g_previous_orion_state = POWERUP_ST;
 }
 
-OrionState orion_sm_get_current_state(){
-  return g_current_orion_state;
-}
+
 void orion_sm_change_state( OrionState new_state) {
-  g_previous_orion_state = g_current_orion_state;
   g_current_orion_state = new_state;
 }
 
@@ -61,33 +51,33 @@ OrionAction orion_state_machine(OrionEvent event) {
   switch (g_current_orion_state) {
 
     case  POWERUP_ST :  //executing setup()
-              
-        if (event == WAIT_VOLTAGE_EV){
-          orion_sm_change_state(WAIT_OP_VOLTAGE_ST);
-          next_action = OP_VOLT_WAITLOOP_ACTION;
-        }
-        else 
-          swerr(1, event); // This event is not supported in this state
-        
-        break;
+
+      if (event == WAIT_VOLTAGE_EV) {
+        orion_sm_change_state(WAIT_OP_VOLTAGE_ST);
+        next_action = OP_VOLT_WAITLOOP_ACTION;
+      }
+      else
+        info(1, event); // This event is not supported in this state, ignore
+
+      break;
 
     case  CALIBRATE_ST :  // calibrating Si5351a clock
-    
+
       if ( (event == CALIBRATION_DONE_EV) || (event == CALIBRATION_FAIL_EV) ) {
         orion_sm_change_state(WAIT_TELEMETRY_ST);
         next_action = NO_ACTION;
       }
-      else { 
-        if ( (event == GPS_LOS_TIMEOUT_EV) || (event == STARTUP_CALIBRATION_FAIL_EV)  ) { 
+      else {
+        if ( (event == GPS_LOS_TIMEOUT_EV) || (event == STARTUP_CALIBRATION_FAIL_EV)  ) {
           // We exceeded the guard time for GPS LOS or we failed startup calibration so we switch over to QRSS transmissions
           orion_sm_change_state(QRSS_TX_ST);
-          next_action = QRSS_TX_ACTION; // Initiate QRSS Transmission Mode until GPS AOS  
+          next_action = QRSS_TX_ACTION; // Initiate QRSS Transmission Mode until GPS AOS
         }
         else
-        
-          swerr(9, event); // Unexpected event in this state
+
+          info(2, event); // This event is not supported in this state, ignore
       }
-        
+
       break;
 
 
@@ -98,7 +88,7 @@ OrionAction orion_state_machine(OrionEvent event) {
         next_action = GET_TELEMETRY_ACTION;
       }
       else
-        swerr(2, event); // This event is not supported in this state
+        info(3, event); // This event is not supported in this state, ignore
       break;
 
 
@@ -113,7 +103,7 @@ OrionAction orion_state_machine(OrionEvent event) {
         next_action = INITIATE_SHUTDOWN_ACTION;
       }
       else
-        swerr(3, event); // This event is not supported in this state
+        info(4, event); // This event is not supported in this state, ignore
       break;
 
 
@@ -124,116 +114,115 @@ OrionAction orion_state_machine(OrionEvent event) {
         next_action = TX_WSPR_MSG1_ACTION; // Start Transmitting the Primary WSPR Message
       }
       else
-        swerr(4, event); // This event is not supported in this state
+        info(5, event); // This event is not supported in this state, ignore
       break;
 
 
     case  TX_PRIMARY_WSPR_ST : // transmitting Primary WSPR Msg
       if (event == PRIMARY_WSPR_TX_DONE_EV) { // Primary WSPR Transmission Complete
-          orion_sm_change_state(WAIT_TX_SECONDARY_WSPR_ST);
-          next_action = NO_ACTION;    
+        orion_sm_change_state(WAIT_TX_SECONDARY_WSPR_ST);
+        next_action = NO_ACTION;
       }
       else
-        swerr(13, event); // This event is not supported in this state
+        info(6, event); // This event is not supported in this state, ignore
       break;
-          
-   
-      case  WAIT_TX_SECONDARY_WSPR_ST : // waiting for Secondary WSPR Msg TX Window
-      
-              switch (event) {
-                case WSPR_TX_TIME_MIN02_EV :
-                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
-                  next_action = TX_WSPR_MIN02_ACTION;
-                  break;
-                
-                case WSPR_TX_TIME_MIN12_EV :
-                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
-                  next_action = TX_WSPR_MIN12_ACTION;
-                  break;
-                
-                case WSPR_TX_TIME_MIN22_EV :
-                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
-                  next_action = TX_WSPR_MIN22_ACTION;
-                  break;
-                  
-                case WSPR_TX_TIME_MIN32_EV :                   
-                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
-                  next_action = TX_WSPR_MIN32_ACTION;
-                  break;
-                  
-                case WSPR_TX_TIME_MIN42_EV :
-                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
-                  next_action = TX_WSPR_MIN42_ACTION;
-                  break;
-                  
-                case WSPR_TX_TIME_MIN52_EV :
-                  orion_sm_change_state(TX_SECONDARY_WSPR_ST);
-                  next_action = TX_WSPR_MIN52_ACTION;
-                  break;
-                
-                default : 
-                  swerr(12, event); // This event is not supported in this state
-         
-              } // end switch(event)
-              break;   
-           
 
-      case  TX_SECONDARY_WSPR_ST : // transmitting Secondary WSPR Msg
-       if (event == SECONDARY_WSPR_TX_DONE_EV) { // Secondary WSPR Transmission Complete
 
-          if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && (is_selfcalibration_on())) {
-            // Now we initiate a four minute Calibration Cycle for the next transmission
-            orion_sm_change_state(CALIBRATE_ST);
-            next_action = CALIBRATION_ACTION;
-          }
-          else {
-            // If we don't support self Calibration then skip to telemetry
-            orion_sm_change_state(WAIT_TELEMETRY_ST);
-            next_action = NO_ACTION;
-          }
+    case  WAIT_TX_SECONDARY_WSPR_ST : // waiting for Secondary WSPR Msg TX Window
 
+      switch (event) {
+        case WSPR_TX_TIME_MIN02_EV :
+          orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+          next_action = TX_WSPR_MIN02_ACTION;
+          break;
+
+        case WSPR_TX_TIME_MIN12_EV :
+          orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+          next_action = TX_WSPR_MIN12_ACTION;
+          break;
+
+        case WSPR_TX_TIME_MIN22_EV :
+          orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+          next_action = TX_WSPR_MIN22_ACTION;
+          break;
+
+        case WSPR_TX_TIME_MIN32_EV :
+          orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+          next_action = TX_WSPR_MIN32_ACTION;
+          break;
+
+        case WSPR_TX_TIME_MIN42_EV :
+          orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+          next_action = TX_WSPR_MIN42_ACTION;
+          break;
+
+        case WSPR_TX_TIME_MIN52_EV :
+          orion_sm_change_state(TX_SECONDARY_WSPR_ST);
+          next_action = TX_WSPR_MIN52_ACTION;
+          break;
+
+        default :
+          info(7, event); // This event is not supported in this state, ignore
+
+      } // end switch(event)
+      break;
+
+
+    case  TX_SECONDARY_WSPR_ST : // transmitting Secondary WSPR Msg
+      if (event == SECONDARY_WSPR_TX_DONE_EV) { // Secondary WSPR Transmission Complete
+
+        if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && (is_selfcalibration_on())) {
+          // Now we initiate a four minute Calibration Cycle for the next transmission
+          orion_sm_change_state(CALIBRATE_ST);
+          next_action = CALIBRATION_ACTION;
         }
-        else
-          swerr(5, event); // This event is not supported in this state
-        break;
+        else {
+          // If we don't support self Calibration then skip to telemetry
+          orion_sm_change_state(WAIT_TELEMETRY_ST);
+          next_action = NO_ACTION;
+        }
 
-    case WAIT_OP_VOLTAGE_ST : // Waiting to reach operational voltage 
-       if (event == SETUP_DONE_EV) {
+      }
+      else
+        info(8, event); // This event is not supported in this state, ignore
+      break;
 
-          if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && (is_selfcalibration_on())) {
-            // Done setup now do intial calibration
-            orion_sm_change_state(CALIBRATE_ST);
-            next_action = STARTUP_CALIBRATION_ACTION;
-          }
-          else {
-            // If we don't support self Calibration then skip to telemetry
-            orion_sm_change_state(WAIT_TELEMETRY_ST);
-            
-            // Since we can't rely on the post-calibration cleanup to setup and 
-            // start the WS TX Interrupt we trigger it using an action. 
-            next_action = WSPR_TX_INT_SETUP_ACTION;
-          }
-          
-        } // SETUP_DONE_EV 
-        else
-          swerr(15, event);
-        break;
-        
+    case WAIT_OP_VOLTAGE_ST : // Waiting to reach operational voltage
+      if (event == SETUP_DONE_EV) {
+
+        if ((SI5351_SELF_CALIBRATION_SUPPORTED == true) && ( is_selfcalibration_on() == true) ) {
+          // Done setup now do intial calibration
+          orion_sm_change_state(CALIBRATE_ST);
+          next_action = STARTUP_CALIBRATION_ACTION;
+        }
+        else {
+          // If we don't support self Calibration then skip to telemetry
+          orion_sm_change_state(WAIT_TELEMETRY_ST);
+
+          // Since we can't rely on the post-calibration cleanup to setup and
+          // start the WS TX Interrupt we trigger it using an action.
+          next_action = WSPR_TX_INT_SETUP_ACTION;
+        }
+
+      } // SETUP_DONE_EV
+      else
+        info(9, event); // This event is not supported in this state, ignore
+      break;
+
     case QRSS_TX_ST :
       if (event == QRSS_TX_DONE_EV) {
         orion_sm_change_state(CALIBRATE_ST);
-        next_action = CALIBRATION_ACTION;  
+        next_action = CALIBRATION_ACTION;
       }
-      break; 
-      
-    default : 
-        swerr(6, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.
-        break;
-    
+      break;
+
+    default :
+      swerr(1, g_current_orion_state); // If we end up here it is an error as we have and unimplemented state.
+      break;
+
 
   } // end switch
 
-  g_previous_orion_event = event;
   g_current_orion_event = NO_EV;
 
   // Post_sm trace logging

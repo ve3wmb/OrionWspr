@@ -25,55 +25,10 @@
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE A SPECIFIC BOARD TO USE THE ORION WSPR BEACON CODE
 
 #define BOARDNAME " - Mickey"        // This string is output along with code version using the 'v' command in the monitor
+
+/// Note: When using a previously unprogrammed ATMega chip it is important to "burn bootlader" first so that the fuses are set correctly
+
 /*
-** Note: When using a previously unprogrammed ATMega chip it is important to "burn bootlader" first so that the fuses are set correctly
-**
-** ATMEL AVR in circuit programming (ISP) header pinout (view from top of header)
-** 
-**         6 pin                    10 pin 
-**         +----+                   +----+    
-**    MISO |1  2| VCC          MOSI |1  2| VCC
-**     SCK |3  4| MOSI     (unused) |3  4| GND
-**   RESET |5  6| GND         RESET |5  6| GND
-**         +----+               SCK |7  8| GND
-**                             MISO |9 10| GND
-**                                  +----+
-** 
-** 
-**  Arduino Function                            ATMega168/328                      Arduino Function
-**                                                +---v---+
-**  reset		      (PCINT14/RESET) PC6 |1    28| PC5 (ADC5/SCL/PCINT13) analog input A5
-**  digital pin D0 (RX)	        (PCINT16/RXD) PD0 |2    27| PC4 (ADC4/SDA/PCINT12) analog input A4
-**  digital pin D1 (TX)         (PCINT17/TXD) PD1 |3    26| PC3 (ADC3/PCINT11)     analog input A3
-**  digital pin D2             (PCINT18/INT0) PD2 |4    25| PC2 (ADC2/PCINT10)     analog input A2
-**  digital pin D3 (PWM)  (PCint19/OC2B/INT1) PD3 |5    24| PC1 (ADC1/PCINT9)      analog input A1
-**  digital pin D4           (PCINT20/XCK/T0) PD4 |6    23| PC0 (ADC0/PCINT8)      analog input A0
-**  VCC                                       VCC |7    22| GND                    GND
-**  GND                                       GND |8    21| AREF                   analog reference
-**  crystal              (PCINT6/XTAL1/TOSC1) PB6 |9    20| AVCC                   analog VCC
-**  crystal              (PCINT7/XTAL2/TOSC2) PB7 |10   19| PB5 (SCK/PCINT5)       digital pin D13
-**  digital pin D5 (PWM)    (PCINT21/OC0B/T1) PD5 |11   18| PB4 (MISO/PCINT4)      digital pin D12
-**  digital pin D6 (PWM)  (PCINT22/OC0A/AIN0) PD6 |12   17| PB3 (MOSI/OC2A/PCINT3) digital pin D11 (PWM)
-**  digital pin D7             (PCINT23/AIN1) PD7 |13   16| PB2 (SS/OC1B/PCINT2)   digital pin D10 (PWM)
-**  digital pin D8         (PCINTO/CKLO/ICP1) PB0 |14   15| PB1 (OC1A/PCINT1)      digital pin D9  (PWM)
-**                                                +-------+
-**
-**          USB to serial TTL converter using FTDI chipset
-**    
-**          Model FT-232R-5V  ( Note: 5V - not 3.3V!)
-**       
-**          http://www.ebay.com/itm/370645733800
-**
-**                 
-**                 Black:  GND
-**                 Brown:  CTS (Clear to Send)
-**                   Red:  VCC +5v
-**                Orange:  Tx Data (output)
-**                Yellow:  Rx Data (Input)
-**                 Green:  RTS (Request to Send)
-**
-
-
 DL6OW Stella16-SIM33 boards
 
 atmega328 pin #                                    
@@ -114,8 +69,7 @@ atmega328 pin #
 	 31        PD1 (TXD/PCINT17)                    
 	 32        PD2 (INT0/PCINT18)                   U3S - si5351a SDA                          Arduino D2
 	 
-	 
-	 
+	  
 Divider uses 10K and 3K ohm
  
 4.766667 Vpwrbus = 1.1000000769 V output from divider
@@ -125,9 +79,9 @@ Set arduino AREF to use internal 1.1V reference
 Arduino 10bit ADC; each count of 1 = 0.004654V
 */
 
-/*************************************************************************
-/* The following #defines select CODE OPTIONALITY via conditional compile*
-*************************************************************************/
+//*************************************************************************
+// The following #defines select CODE OPTIONALITY via conditional compile *
+//*************************************************************************
  
 // GPS Communicates with processor via Hardware serial 
 #define GPS_USES_HW_SERIAL              // Comment out if ATMEGA328p communicates with GPS via Software Serial
@@ -170,9 +124,9 @@ Arduino 10bit ADC; each count of 1 = 0.004654V
 #define SYNC_LED_PRESENT 
 /*****************************************************************************/
 
-/*****************************************************************************************
-* Atmega328p processor Pin Configurations - change these to match your specific hardware *
-*****************************************************************************************/
+//*****************************************************************************************
+// Atmega328p processor Pin Configurations - change these to match your specific hardware *
+//*****************************************************************************************
 
 // PIN definitions for Si5351a software I2C communication. 
 // Ignore if using Hardware I2C with Wire Library to communicate with the Si5351a
@@ -205,19 +159,18 @@ Arduino 10bit ADC; each count of 1 = 0.004654V
 //#define GPS_PPS_PIN 3            // This must be either 2 or 3 (i.e. D2 or D3) to use external interrupts, otherwise you must use a PinChangeInterrupt for PPS 
 #define GPS_PPS_PIN A5         // DL6OW STELLA boards and other U3S Clones use A5/ADC5 (physical pin #28) for PPS. This uses PCINT13       
 
-/***********************************************************
-   Si5351a Configuration Parameters
- ***********************************************************/
+//**********************************************************
+//   Si5351a Configuration Parameters                      *
+//**********************************************************
 #define SI5351A_PARK_CLK_NUM    1              // The Si5351a Clock Number output used to mimic the QRP Labs U3S Park feature. This needs to be an unused clk port.
                                                // I recommend terminating this port to ground via a 47 to 56 ohm resistor.
 #define SI5351A_CAL_CLK_NUM     2              // Calibration Clock Number                                
 #define SI5351A_WSPRTX_CLK_NUM  0              // The Si5351a Clock Number output used for the WSPR Beacon Transmission
 
-/*********************************************************************************************************************** 
-*  You need to calibrate your Si5351a and substitute the your correction value for SI5351A_CLK_FREQ_CORRECTION below.
-*  See OrionSi5351_calibration.ino sketch. You may also need to modify SI5351BX_XTALPF
-*  in OrionSi5351.h is you need a crystal load capacitance other that 8 pf.
-************************************************************************************************************************/
+//********************************************************************************************************************** 
+// You need to calibrate your Si5351a and substitute the your correction value for SI5351A_CLK_FREQ_CORRECTION below.
+// You may also need to modify SI5351BX_XTALPF in OrionSi5351.h is you need a crystal load capacitance other that 8 pf.
+//***********************************************************************************************************************
 #define SI5351A_CLK_FREQ_CORRECTION  -13850      // Correction value for Si5351a on Mickey prototype
 
 #define SI5351BX_XTALPF   3               // 1:6pf  2:8pf  3:10pf -  assuming 10 pF, otherwise change
@@ -231,9 +184,9 @@ Arduino 10bit ADC; each count of 1 = 0.004654V
 #define MONITOR_SERIAL_BAUD     9600          // Baudrate for Orion Serial Monitor      
 
 
-/***************************************************************************
-*   Parameters dependant on Processor CPU Speed - Assumption is 8Mhz Clock *
-***************************************************************************/
+//**************************************************************************
+//   Parameters dependant on Processor CPU Speed - Assumption is 8Mhz Clock *
+//*************************************************************************/
 // The following value WSPR_CTC is used for Timer1 that generates a 1.46 Hz interrupt.
 
 // THE CURRENT VALUE for WSPR_CTC ASSUMES AN 8 MHZ PROCESSOR CLOCK !

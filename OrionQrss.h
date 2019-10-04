@@ -1,7 +1,7 @@
 #ifndef ORIONQRSS_H
 #define ORIONQRSS_H
 /*
-    OrionQrss.h - Definitions for Orion QRSS Beacon Code  
+    OrionQrss.h - Definitions for Orion QRSS Beacon Code
 
    Copyright (C) 2018-2019 Michael Babineau <mbabineau.ve3wmb@gmail.com>
 
@@ -22,16 +22,13 @@
 #define QRSS_BEACON_FREQ_HZ       14096810UL
 #define QRSS_BEACON_FSK_OFFSET_HZ 4            // DITS will be transmitted at QRSS_BEACON_FREQ_HZ and DAHS QRSS_BEACON_FSK_OFFSET_HZ higher for FSKCW
 #define QRSS_MESSAGE "  VE3WMB "               // Message - put your callsign here, in capital letters. I recommend two spaces before and one after callsign
-                                               
+
 
 // Delay after QRSS Transmission before attempting self_calibration (3 minutes)
 #define POST_QRSS_TX_DELAY_MS   180000  // - Three minutes. Since we wait about 2 minutes for calibration this gives about 5 minutes between QRSS transmissions
-#define FSK_HIGH  QRSS_BEACON_FSK_OFFSET_HZ 
+#define FSK_HIGH  QRSS_BEACON_FSK_OFFSET_HZ
 #define FSK_LOW 0
-
-enum QrssMode {MODE_NONE, MODE_QRSS, MODE_FSKCW, MODE_DFCW};
-enum QrssSpeed {s12wpm, QRSS3, QRSS6, QRSS10};
 
 void qrss_beacon();
 
- #endif
+#endif
