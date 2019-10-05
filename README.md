@@ -1,7 +1,7 @@
 # OrionWspr
 
 
-Consider this to be Alpha Software. Current version is: v0.26a
+This is Beta Software. Current version is: v0.27b.
  
 
 Current compile stats are:
@@ -23,6 +23,8 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.27b - Up-versioned to reflect change of load status to Beta. 
 
 v0.26a - Minor changes to remove extraneous code and variables, fix and add additional code comments. Introduce an
 info() log to replace some instances of swerr() that should still be logged, but are not actually software errors().
