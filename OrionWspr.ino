@@ -103,7 +103,8 @@
 #define GPS_PORT_NAME "NeoSWSerial"
 #endif
 
-#define GPS_STATUS_STD 4         //This needs to match the definition in NeoGPS for STATUS_STD 
+
+#define GPS_STATUS_TIME_ONLY  2   //This needs to match the definition in NeoGPS (GPSfix.h)  for STATUS_TIME_ONLY 
 #define LAST_MIN_SEC_NOT_SET 61  // For initializing g_last_second and g_last_minute
 
 // WSPR specific defines. DO NOT CHANGE THESE VALUES, EVER!
@@ -398,7 +399,7 @@ void get_gps_fix_and_time() {
   while (gps.available(gpsPort)) {
     fix = gps.read();
 
-    if (fix.valid.time) {
+    if ((fix.valid.status) && (fix.status > GPS_STATUS_TIME_ONLY)) {
        
 
       // If we have a valid fix, set the Time on the Arduino if needed, This handles the intial time setting case
@@ -419,12 +420,12 @@ void get_gps_fix_and_time() {
       if (g_chrono_GPS_LOS.isRunning()== true) {
          g_gps_time_ok = false; // We seem to think we have a valid time fix but we are in LOS so don't trust the time
       }
-      else { // Not in LOS and fix.valid.time is true 
+      else { // We are not in GPS LOS and we have a alid 3d fix
         g_gps_time_ok = true; //gps time is ok
       }
 
   } 
-  else { // fix.valid.time == false
+  else { // fix.valid.status == false or we don't have a 3d fix.
     // The GPS time fix isn't valid so it doesn't matter if we are in LOS or not, flag it as bad 
     g_gps_time_ok = false;
   }
