@@ -1,7 +1,7 @@
 #ifndef ORIONBOARDCONFIG_H
 #define ORIONBOARDCONFIG_H
 
- //  Stella16BoardConfig.h - Orion Board Configuration for DL6OW STELLA 9.1 - U3S Clone
+ //  Stella91BoardConfig.h - Orion Board Configuration for DL6OW STELLA 9.1 - U3S Clone
  //  HW serial to GPS, SW serial for debug monitor, software I2C, supports self-calibration
  //  with PinChangeInterrupts on A5/ADC5.
 
@@ -25,7 +25,7 @@
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE A SPECIFIC BOARD TO USE THE ORION WSPR BEACON CODE
 
-#define BOARDNAME " - STELLA 16"        // This string is output along with code version using the 'v' command in the monitor
+#define BOARDNAME " - STELLA 9.1"        // This string is output along with code version using the 'v' command in the monitor
 /*
 // Note: When using a previously unprogrammed ATMega chip it is important to "burn bootloader" first so that the fuses are set correctly
 // Use Arduino Pro Mini 3.3v / 8 Mhz as Board / Processor Type for 3.3 v operation. 
@@ -139,7 +139,7 @@ Arduino 10bit ADC; each count of 1 = 0.004654V
 // External Temperature Sensor. If one of the following two are DEFINED this sensor data will be used for temperature telemetry
 // otherwise we default to using the internal temperature sensor in the Atmega328p. Only uncomment one at most. 
  
-#define DS1820_TEMP_SENSOR_PRESENT  // Dallas Semiconductor DS18020 external One-wire sensor is present
+//#define DS1820_TEMP_SENSOR_PRESENT  // Dallas Semiconductor DS18020 external One-wire sensor is present
 //#define TMP36_TEMP_SENSOR_PRESENT   // TMP36 - Placeholder for now, not yet supported. 
 
 #if defined (DS1820_TEMP_SENSOR_PRESENT)

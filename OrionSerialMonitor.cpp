@@ -64,10 +64,10 @@ ISR (PCINT2_vect)
 }  // end of PCINT2_vect
 #endif
 
-static bool g_debug_on_off = DEBUG_MODE;
-static bool g_txlog_on_off = ON;
-static bool g_info_log_on_off = ON;
-static bool g_qrm_avoidance_on_off = ON;
+static bool g_debug_on_off = DEBUG_LOG_INITIAL;    // Debug logging flag
+static bool g_txlog_on_off = TX_LOG_INITIAL;      // Transmit logging flag
+static bool g_info_log_on_off = INFO_LOG_INITIAL; // Info logging flag
+static bool g_qrm_avoidance_on_off = OFF;         // Frequency Diversity is initially off. 
 static bool g_selfcalibration_on_off = ON;
 
 #if defined (DEBUG_USES_SW_SERIAL)
@@ -76,13 +76,7 @@ NeoSWSerial debugSerial(SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN);  // RX, TX
 #define debugSerial Serial
 #endif
 
-void enable_qrm_avoidance() {
-  g_qrm_avoidance_on_off = ON;
-}
 
-void disable_qrm_avoidance() {
-  g_qrm_avoidance_on_off = OFF;
-}
 
 bool is_selfcalibration_on() {
   if (g_selfcalibration_on_off == OFF)
@@ -115,6 +109,32 @@ void print_date_time() {
   debugSerial.print(second());
   debugSerial.print(F(" "));
 
+}
+
+void enable_qrm_avoidance() {
+    
+  if  (g_info_log_on_off == ON){
+    
+    if (g_qrm_avoidance_on_off == OFF) {
+      // We only want to know that QRM avoidance has been turned on if it was previously off
+      print_date_time();
+      debugSerial.println(F(" ** Info: QRM Avoidance is: ON ** "));
+      print_monitor_prompt();
+    }
+    
+  }
+  
+  g_qrm_avoidance_on_off = ON;
+}
+
+void disable_qrm_avoidance() {
+  g_qrm_avoidance_on_off = OFF;
+  
+   if  (g_info_log_on_off == ON){
+    print_date_time();
+    debugSerial.println(F(" ** Info: QRM Avoidance is: OFF ** "));
+    print_monitor_prompt();
+  }
 }
 
 bool toggle_on_off(bool flag) {

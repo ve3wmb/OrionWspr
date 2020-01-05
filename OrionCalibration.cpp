@@ -304,6 +304,11 @@ OrionCalibrationResult do_calibration(unsigned long calibration_step, uint64_t c
 
       // If measured_rx_freq == target_freq we don't modify the cal_factor.
       if (measured_rx_freq != 0 ) {
+        
+        // When we reach our target Frequency enable Frequency Diversity (aka QRM Avoidance)
+        if (measured_rx_freq == target_freq)
+          enable_qrm_avoidance();
+          
         if (measured_rx_freq < target_freq)
           cal_factor = cal_factor - calibration_step;
 

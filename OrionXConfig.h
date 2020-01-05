@@ -19,19 +19,25 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <Arduino.h>
+#define OFF false
+#define ON true
 
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
+// See Orion Manual for configuration details. 
 
-#define ORION_FW_VERSION "v0.28b"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+#define ORION_FW_VERSION "v0.29b"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
 // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
 // a = alpha b=beta, r=release
 
 
-#define DEBUG_MODE false        // This determines the intial setting for g_debug_on_off in the serial monitor
-
-//*****************
-#define OFF false
-#define ON true
+#define DEBUG_LOG_INITIAL  OFF          // This is the intial setting for g_debug_on_off in the serial monitor.
+                                        // THIS SHOULD BE SET TO OFF FOR FLIGHT
+                                        
+#define TX_LOG_INITIAL ON               // This determines the intial setting for g_txlog_on_off in the serial monitor.
+                                        // THIS SHOULD BE SET TO OFF FOR FLIGHT
+                                        
+#define INFO_LOG_INITIAL ON             // This determines the intial setting for g_info_log_on_off in the serial monitor.
+                                        // THIS SHOULD BE SET TO OFF FOR FLIGHT
 
 /***********************************************************
    USER SPECIFIED PARAMETERS FOR WSPR
@@ -45,8 +51,8 @@
 #define BEACON_GRID_SQ_4CHAR    "AA01"        // Your hardcoded 4 character Grid Square - this will be overwritten with GPS derived Grid
 #define BEACON_TX_PWR_DBM          7          // Beacon Power Output in dBm (5mW = 7dBm)       
 
-#define OPERATING_VOLTAGE_Vx10       32         // This is the sampled VCC value x 10  required to initiate beacon operation (i.e 33 means 3.3v) 
-#define SHUTDOWN_VOLTAGE_Vx10        30         // Sampled VCC value x 10. Readings below this value will initiate the transition to SHUTDOWN_ST
+#define OPERATING_VOLTAGE_Vx10       30        // This is the sampled VCC value x 10  required to initiate beacon operation (i.e 33 means 3.3v) 
+#define SHUTDOWN_VOLTAGE_Vx10        20        // Sampled VCC value x 10. Readings below this value will initiate the transition to SHUTDOWN_ST
 
 #define OPERATING_VOLTAGE_GUARD_TMO_MS 3600000      // Guard Timeout value for  1 hour (60,000 ms / minute x 60 
 #define CALIBRATION_GUARD_TMO_MS  90000             // Guard Timeout value for 1.5 minutes (60,000 ms / minute x 1.5) 

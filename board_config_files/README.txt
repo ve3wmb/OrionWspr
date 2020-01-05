@@ -6,7 +6,7 @@ Then recompile the code.
 
 This allows the Orion WSPR beacon to run a number of different boards including U3S clones
 as well as K1FM PicoB boards. Be sure to make the necessary changes to #defines to describe
-your board configuration (better documentation to come later). 
+your board configuration.
 
 Note that the value for SI5351A_CLK_FREQ_CORRECTION is derived from self-calibration.
 On a new board start with a value of 0. (i.e. #define SI5351A_CLK_FREQ_CORRECTION 0).

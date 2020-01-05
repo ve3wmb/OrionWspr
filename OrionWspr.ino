@@ -103,8 +103,7 @@
 #define GPS_PORT_NAME "NeoSWSerial"
 #endif
 
-
-#define GPS_STATUS_TIME_ONLY  2   //This needs to match the definition in NeoGPS (GPSfix.h)  for STATUS_TIME_ONLY 
+#define GPS_STATUS_TIME_ONLY 2         //This needs to match the definition in NeoGPS (GPSfix.h) for STATUS_TIME_ONLY
 #define LAST_MIN_SEC_NOT_SET 61  // For initializing g_last_second and g_last_minute
 
 // WSPR specific defines. DO NOT CHANGE THESE VALUES, EVER!
@@ -315,7 +314,14 @@ void set_tx_data() {
   // Set the transmit frequency
   g_beacon_freq_hz = get_tx_frequency();
 
-  g_tx_data.altitude_m = g_orion_current_telemetry.altitude_cm / 100; // convert from cm to metres;
+  if (g_orion_current_telemetry.altitude_cm < 0) {
+    // Handle rare case where GPS reported altitude is negative
+    g_tx_data.altitude_m = 0;
+  }
+  else {
+    g_tx_data.altitude_m = g_orion_current_telemetry.altitude_cm / 100; // convert from cm to metres;
+  }
+  
   g_tx_data.speed_kn = g_orion_current_telemetry.speed_mkn / 1000;   // covert from thousandths of a knot to knots
   g_tx_data.number_of_sats = g_orion_current_telemetry.number_of_sats;
   g_tx_data.gps_status = g_orion_current_telemetry.gps_status;
@@ -399,7 +405,7 @@ void get_gps_fix_and_time() {
   while (gps.available(gpsPort)) {
     fix = gps.read();
 
-    if ((fix.valid.status) && (fix.status > GPS_STATUS_TIME_ONLY)) {
+    if ( (fix.valid.status) && (fix.status > GPS_STATUS_TIME_ONLY)) {
        
 
       // If we have a valid fix, set the Time on the Arduino if needed, This handles the intial time setting case
@@ -420,12 +426,12 @@ void get_gps_fix_and_time() {
       if (g_chrono_GPS_LOS.isRunning()== true) {
          g_gps_time_ok = false; // We seem to think we have a valid time fix but we are in LOS so don't trust the time
       }
-      else { // We are not in GPS LOS and we have a alid 3d fix
+      else { // Not in LOS and have a valid 3d fix
         g_gps_time_ok = true; //gps time is ok
       }
 
   } 
-  else { // fix.valid.status == false or we don't have a 3d fix.
+  else { // fix.valid.status == false or we don't have a valid 3d fix.
     // The GPS time fix isn't valid so it doesn't matter if we are in LOS or not, flag it as bad 
     g_gps_time_ok = false;
   }
@@ -436,6 +442,12 @@ void get_gps_fix_and_time() {
 
 
 bool low_voltage_shutdown_check() {
+
+  // Don't bother to check battery voltage if SHUTDOWN VOLTAGE feature is disabled. 
+  if (SHUTDOWN_ON_LOW_VOLTAGE == false) {
+    return false;
+  }
+  
   if  (g_tx_data.battery_voltage_v_x10 < SHUTDOWN_VOLTAGE_Vx10)
     return true;
   else
@@ -542,11 +554,7 @@ OrionAction handle_calibration_result(OrionCalibrationResult cal_result, OrionAc
         case PASS :
         
           if (g_chrono_GPS_LOS.isRunning()== true){ // We are recovering from a GPS LOS
-            disable_qrm_avoidance(); // This gives us two passed calibration cycles to get back on frequency before re-enabling
             g_chrono_GPS_LOS.stop(); // If we were in an LOS situation it is over because of the PASS so kill the timer
-          }
-          else { // GPS LOS Guard Timer is not running 
-            enable_qrm_avoidance(); 
           }
              
           action = orion_state_machine(CALIBRATION_DONE_EV);
@@ -790,18 +798,22 @@ OrionAction process_orion_sm_action (OrionAction action) {
       returned_action = NO_ACTION;
       break;
 
-    case OP_VOLT_WAITLOOP_ACTION : // We are waiting on the sampled VCC to exceed the defined OPERATING_VOLTAGE_Vx10
+    case OP_VOLT_WAITLOOP_ACTION : 
+        // We are waiting on the sampled VCC to exceed the defined OPERATING_VOLTAGE_Vx10
+        // but only if DELAY_STARTUP_ON_OP_VOLTAGE is true (i.e. STARUP VOLTAGE feature is enabled).
         if (read_voltage_v_x10() >= OPERATING_VOLTAGE_Vx10) {
           setup_si5351_and_gps(); // complete setup
           returned_action = orion_state_machine(SETUP_DONE_EV);
        }
        else { // Current VCC is less than OPERATING_VOLTAGE_Vx10
+        
+          if (DELAY_STARTUP_ON_OP_VOLTAGE == true) {
+            // We loop inside operating_voltage_wait(), sleeping the processor and checking voltage every 10 minutes
+            // until operating voltage is reached or we timeout.
+            operating_voltage_wait();
+          }
 
-          // We loop inside operating_voltage_wait(), sleeping the processor and checking voltage every 10 minutes
-          // until operating voltage is reached or we timeout.
-          operating_voltage_wait();
-
-          // Either the voltage is now ok or we gave up waiting due to timeout
+          // Either the voltage is now ok, the STARTUP VOLTAGE feature is off,  or we gave up waiting due to timeout
           setup_si5351_and_gps(); // complete setup
           returned_action = orion_state_machine(SETUP_DONE_EV);
        }
@@ -939,6 +951,20 @@ void wspr_tx_interrupt_setup() {
 }
 
 void setup() {
+  
+  // Disable the hardware Watch Dog, just in case it was accidentally enabled during a brown-out 
+  noInterrupts();   
+    // Clear WDRF in MCUSR
+     MCUSR &= ~(1<<WDRF);
+     
+   // Write logical one to WDCE and WDE
+   // Keep old prescaler setting to prevent unintentional
+   // time-out
+    WDTCSR |= (1<<WDCE) | (1<<WDE);
+    
+  // Turn off WDT
+   WDTCSR = 0x00;
+ interrupts();
 
   // Note that we don't intialize communications with the GPS or Si5351a until we are sure that we have reached OPERATING_VOLTAGE
 

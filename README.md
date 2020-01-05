@@ -1,17 +1,17 @@
 # OrionWspr
 
 
-This is Beta Software. Current version is: v0.27b.
+This is Beta Software. Current version is: v0.29b.
  
 
 Current compile stats are:
 
-Sketch uses 26886 bytes or 87% (previously 86%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1300 bytes or 63% (previously 63%) of dynamic memory, leaving 748 bytes for local variables. 
+Sketch uses 26700 bytes or 86% (previously 87%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1298 bytes or 63% (previously 63%) of dynamic memory, leaving 750 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
-and hard-code that in the BoardConfig.h file. 
+and hard-code that in the OrionBoardConfig.h file. 
 
 Notes on Software Versioning:
 
@@ -23,6 +23,29 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.29b - Miscellaneous changes in preperation for declaring Release 1 load. 
+
+1) Modification to setup() to ensure that the WATCHDOG timer is always disabled on startup (as a precaution).
+ 
+2) OrionXConfig.h - change DEBUG_MODE to DEBUG_LOG_INITIAL add TX_LOG_INITIAL, these are to set the startup values for the booleans
+controlling debug and transmit log output. 
+
+3) Reorganize BoardConfig files to match the order of parameters as described in the Orion Documentation.
+ 
+4) Force negative altitude readings to be zero to ensure that this doesn't affect Telemetry encoding. 
+
+5) OrionBoardConfig.h, define new parameters DELAY_STARTUP_ON_OP_VOLTAGE (true/false) and SHUTDOWN_ON_LOW_VOLTAGE (true/false) to control
+STARTUP VOLTAGE and SHUDOWN VOLTAGE FEATURES.
+
+6)FREQUENCY DIVERSITY feature (aka QRM Avoidance) is now initially switched off at startup and only enabled once the calibration target frequency is 
+reached during CALIBRATION. Is also disabled on Calibration fail. 
+
+7) New documentation folder now includes Orion Documentation (PDF) and Orion State Machine diagram (PDF). Source files for both are in new 
+subtending documents_source folder. 
+
+v0.28b - Fix for GITHUB issue number 7 - Orion System Date Anomaly on GPS LOS. 
+Re-defines the criteria for a valid GPS time fix from (fix.valid.time == true) to (fix.valid.status == true) && (fix.status > STATUS_TIME_ONLY ).
 
 v0.27b - Up-versioned to reflect change of load status to Beta. 
 
