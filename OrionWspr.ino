@@ -364,13 +364,15 @@ void encode_and_tx_wspr_msg() {
   digitalWrite(TX_LED_PIN, HIGH);
 #endif
 
-  // We need to synchronize the 1.46 second Timer/Counter-1 interrupt to the start of WSPR transmission as it is free-running.
-  // We reset the counts to zero so we ensure that the first symbol is not truncated (i.e we get a full 1.46 seconds before the interrupt handler sets
+  // We need to synchronize the 1.46 Hz (682.68 milliSecond) Timer/Counter-1 interrupt to the start of WSPR transmission as it is free-running.
+  // We reset the counts to zero so we ensure that the first symbol is not truncated (i.e we get a full 682.68 milliseconds before the interrupt handler sets
   // the g_proceed flag).
   noInterrupts();
-  TCNT1 = 0; // Clear the count for Timer/Counter-1
-  GTCCR |= (1 << PSRSYNC); // Do a reset on the pre-scaler. Note that we are not using Timer 0, it shares a prescaler so it would also be impacted.
+   TCNT1 = 0; // Clear the count for Timer/Counter-1
+   GTCCR = (1 << PSRSYNC); // Do a reset on the pre-scaler. Note that we are not using Timer 0, it shares a prescaler so it would also be impacted.
+   TIMSK1 = (1 << OCIE1A);  // Make double sure that the timer1 compare interrupt is enabled, otherwise we are stuck !
   interrupts();
+  
   // Now send the rest of the message
   for (i = 0; i < SYMBOL_COUNT; i++)
   {
@@ -672,7 +674,7 @@ OrionAction process_orion_sm_action (OrionAction action) {
       // because self-calibration isn't suported, we need a mechanism to setup this timer Interrupt, so
       // here it is.
 
-      // Setup 1.46 sec Timer1 interrupt for WSPR Transmission
+      // Setup 1.46 Hz Timer1 interrupt for WSPR Transmission
       wspr_tx_interrupt_setup();
       returned_action = NO_ACTION;
       break;

@@ -1,13 +1,13 @@
 # OrionWspr
 
 
-This is Beta Software. Current version is: v0.29b.
+This is Beta Software. Current version is: v0.30b.
  
 
 Current compile stats are:
 
-Sketch uses 26700 bytes or 86% (previously 87%) of program storage space. Maximum is 30720 bytes. 
-Global variables use 1298 bytes or 63% (previously 63%) of dynamic memory, leaving 750 bytes for local variables. 
+Sketch uses 257008 bytes or 81% (previously 86%) of program storage space. Maximum is 30720 bytes. 
+Global variables use 1260 bytes or 61% (previously 63%) of dynamic memory, leaving 788 bytes for local variables. 
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
@@ -23,6 +23,9 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v0.30b - Fix for Issue#6 - GPS LOS during Calibration sometimes results in Orion getting stuck in TX.
+ Minor change to OrionManual to correct the section on configuring NEOGPS Library. Up-versioned doc to v0.4 draft. 
 
 v0.29b - Miscellaneous changes in preperation for declaring Release 1 load. 
 

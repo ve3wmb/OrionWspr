@@ -342,6 +342,26 @@ OrionCalibrationResult do_calibration(unsigned long calibration_step, uint64_t c
   // Turn off the Calibration clock
   si5351bx_enable_clk(SI5351A_CAL_CLK_NUM, SI5351_CLK_OFF);
 
+  // If we failed Calibration then we need to shutdown the External/PINChange Interrupt sampling PPS and the Timer/Counter-1 interrupt sampling frequency on A5.
+  // This code mimics what happens when Calibration terminates successfully. (See PPSinterruptISR() and ISR (PCINT1_vect) for handling of the success case.)
+  if (calibration_result != PASS ) { // If we failed Calibration then we need to disable the interrupts used for Calibration
+    noInterrupts();
+    #if defined GPS_PPS_ON_D2_OR_D3 
+    {
+        //  GPS PPS signal sampled using External Interrupts on D2 or D3
+       EIMSK = (0 << INT0); // Disable GPS PPS external interrupt (INT1 on PIN D3)- CHANGE THIS to "INT0" IF USING PIN D2
+       TCCR1B = 0; // Disable Timer1 Counter sampling of the calibration clock.
+    }
+    #else 
+    {
+      // GPS PPS signal sampled using PinChangeInterrupts on A5/PCINT13 typical of U3S clone boards
+      PCMSK1 = (0 << PCINT13); // Disable PinChangeInterrupts (GPS PPS interrupt PCINT13 on A5)
+      TCCR1B = 0; // Disable Timer1 Counter Interrupt sampling of the calibration clock.
+    }
+    #endif
+    interrupts(); 
+  } // end if calibration not passed 
+
   // Turn on the PARK clock
   si5351bx_setfreq(SI5351A_PARK_CLK_NUM, (PARK_FREQ_HZ * 100ULL), SI5351_CLK_ON); // Turn on Park Clock
 
