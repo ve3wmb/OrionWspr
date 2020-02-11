@@ -25,7 +25,7 @@
 // THIS FILE CONTAINS THE USER MODIFIABLE #DEFINES TO CONFIGURE THE ORION WSPR BEACON
 // See Orion Manual for configuration details. 
 
-#define ORION_FW_VERSION "v0.30b"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
+#define ORION_FW_VERSION "v1.0"  // Whole numbers are for released versions. (i.e. 1.0, 2.0 etc.)
 // Numbers to the right of the decimal are allocated consecutively, one per GITHUB submission.(i.e. 0.01, 0.02 etc)
 // a = alpha b=beta, r=release
 
@@ -33,10 +33,10 @@
 #define DEBUG_LOG_INITIAL  OFF          // This is the intial setting for g_debug_on_off in the serial monitor.
                                         // THIS SHOULD BE SET TO OFF FOR FLIGHT
                                         
-#define TX_LOG_INITIAL ON               // This determines the intial setting for g_txlog_on_off in the serial monitor.
+#define TX_LOG_INITIAL OFF               // This determines the intial setting for g_txlog_on_off in the serial monitor.
                                         // THIS SHOULD BE SET TO OFF FOR FLIGHT
                                         
-#define INFO_LOG_INITIAL ON             // This determines the intial setting for g_info_log_on_off in the serial monitor.
+#define INFO_LOG_INITIAL OFF             // This determines the intial setting for g_info_log_on_off in the serial monitor.
                                         // THIS SHOULD BE SET TO OFF FOR FLIGHT
 
 /***********************************************************

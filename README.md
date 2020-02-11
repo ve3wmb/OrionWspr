@@ -1,7 +1,7 @@
 # OrionWspr
 
 
-This is Beta Software. Current version is: v0.30b.
+Current version is: v1.0 (released). 
  
 
 Current compile stats are:
@@ -11,7 +11,7 @@ Global variables use 1260 bytes or 61% (previously 63%) of dynamic memory, leavi
 Maximum is 2048 bytes.
 
 For this sketch to work properly you will need to calibrate the Si5351a Clock to determine the initial CORRECTION value
-and hard-code that in the OrionBoardConfig.h file. 
+and hard-code that in the OrionBoardConfig.h file. See https://github.com/ve3wmb/Artemis 
 
 Notes on Software Versioning:
 
@@ -23,6 +23,8 @@ a=alpha b=beta, r=release
 
 
 Changelog :
+
+v1.0 - Official Release version. Update to documentation and code versioning to reflect declaration of Release 1. 
 
 v0.30b - Fix for Issue#6 - GPS LOS during Calibration sometimes results in Orion getting stuck in TX.
  Minor change to OrionManual to correct the section on configuring NEOGPS Library. Up-versioned doc to v0.4 draft. 
